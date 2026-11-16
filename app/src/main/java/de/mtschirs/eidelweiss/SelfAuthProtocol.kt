@@ -75,11 +75,13 @@ object SelfAuthProtocol {
 
     fun summarize(payload: JSONObject, startedAtUtc: String, certificateShown: Boolean,
                   rightsShown: Boolean, nfcForwarded: Boolean,
-                  environment: SelfAuthEnvironment = SelfAuthEnvironment.PRODUCTION): AuthRunSummary =
+                  environment: SelfAuthEnvironment = SelfAuthEnvironment.PRODUCTION,
+                  nativeInstrumentedSdk: Boolean = false): AuthRunSummary =
         AuthRunSummary(
             startedAtUtc = startedAtUtc,
             finishedAtUtc = Instant.now().toString(),
-            mode = environment.reportMode,
+            mode = if (nativeInstrumentedSdk) "INSTRUMENTED_AUSWEISAPP_SDK_${environment.name}"
+                else environment.reportMode,
             outcome = safeOutcome(payload),
             reason = safeReason(payload),
             certificateShown = certificateShown,

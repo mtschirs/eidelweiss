@@ -111,7 +111,11 @@ object DiagnosticReport {
         return JSONObject()
             .put("schema_version", 5)
             .put("generated_at_utc", Instant.now().toString())
-            .put("scope", "OFFLINE_SYNTHETIC_FAULT_LAB_PASSIVE_NFC_AND_STANDARD_AUSWEISAPP_SDK_SELF_AUTH")
+            .put("scope", if (BuildConfig.EIDELWEISS_LAB_AAR)
+                "OFFLINE_SYNTHETIC_FAULT_LAB_PASSIVE_NFC_AND_INSTRUMENTED_AUSWEISAPP_SDK_SELF_AUTH"
+                else "OFFLINE_SYNTHETIC_FAULT_LAB_PASSIVE_NFC_AND_STANDARD_AUSWEISAPP_SDK_SELF_AUTH")
+            .put("sdk_engine", if (BuildConfig.EIDELWEISS_LAB_AAR)
+                "LOCAL_INSTRUMENTED_CXX_AAR" else "OFFICIAL_UNMODIFIED_SDK_AAR")
             .put("real_npa_security_conclusion", "NOT_ESTABLISHED")
             .put("nfc_observations", JSONArray(nfcObservations))
             .put("authentication_runs", auth)

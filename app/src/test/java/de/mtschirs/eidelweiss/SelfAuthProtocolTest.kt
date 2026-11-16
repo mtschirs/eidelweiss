@@ -54,4 +54,15 @@ class SelfAuthProtocolTest {
         assertNull(SelfAuthProtocol.safeReason(message))
         assertNull(SelfAuthProtocol.validatedResultUrl(message))
     }
+    @Test fun nativeInstrumentedBuildCannotBeReportedAsUnmodifiedSdk() {
+        val message = JSONObject(
+            """{"msg":"AUTH","result":{"major":"http://www.bsi.bund.de/ecard/api/1.1/resultmajor#ok"}}"""
+        )
+        val run = SelfAuthProtocol.summarize(
+            message, "2026-11-16T00:00:00Z", true, true, true,
+            SelfAuthEnvironment.TEST_PKI, nativeInstrumentedSdk = true
+        )
+        assertEquals("INSTRUMENTED_AUSWEISAPP_SDK_TEST_PKI", run.mode)
+    }
+
 }

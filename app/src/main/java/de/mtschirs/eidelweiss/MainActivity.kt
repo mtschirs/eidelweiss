@@ -726,7 +726,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         closeDialog()
         authHistory += SelfAuthProtocol.summarize(
             message, startedAtUtc, certificateShown, rightsShown, nfcForwarded,
-            activeSelfAuthEnvironment
+            activeSelfAuthEnvironment, BuildConfig.EIDELWEISS_LAB_AAR
         )
         if (authHistory.size > 20) authHistory.removeAt(0)
         resultUrl = if (SelfAuthProtocol.safeOutcome(message) == "ok")
@@ -748,7 +748,9 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         closeDialog()
         authHistory += AuthRunSummary(
             startedAtUtc, Instant.now().toString(),
-            activeSelfAuthEnvironment.reportMode, "incomplete", reason,
+            (if (BuildConfig.EIDELWEISS_LAB_AAR)
+                "INSTRUMENTED_AUSWEISAPP_SDK_${activeSelfAuthEnvironment.name}"
+             else activeSelfAuthEnvironment.reportMode), "incomplete", reason,
             certificateShown, rightsShown, nfcForwarded
         )
         if (authHistory.size > 20) authHistory.removeAt(0)
