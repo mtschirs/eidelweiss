@@ -28,6 +28,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
+      - name: Evidence verifier tests
+        run: python3 -m unittest discover -s tools -p 'test_*.py'
       - name: Unit tests
         run: gradle --no-daemon testDebugUnitTest
       - name: Build APK

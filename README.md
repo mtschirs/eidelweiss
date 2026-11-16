@@ -76,12 +76,33 @@ The matrix also includes a permissive **hypothesis-only** policy for the distinc
 
 Each trace records the modeled server-transaction ordinal, chip-session ordinal, secure-messaging state, TA count, failure point and whether the second TA was accepted **by the model**. A second server transaction does not reset the simulated chip session. If the model restores a PACE context after CA, it deliberately preserves the TA history. All reports explicitly mark `real_card_evidence=false` and `real_server_evidence=false`.
 
-These test cases do **not** issue APDUs, forge or acquire TA signatures, bypass consent, or alter the official SDK. The exported JSON schema is version 3. For actual chip evidence, a separately authorized eID laboratory and instrumented test reader are required.
+These test cases do **not** issue APDUs, forge or acquire TA signatures, bypass consent, or alter the official SDK. The exported JSON schema is version 4. The SDK evidence stream is separate from synthetic laboratory results. For actual chip evidence, a separately authorized eID laboratory and instrumented test reader are required.
+
+## Reale Beobachtungen und belastbare Nachweise
+
+**Neu:** Während einer regulären Selbstauskunft führt Eidelweiss ein datensparsames **echtes SDK-Ereignisprotokoll** (`sdk_observation_runs`, JSON Schema v4). Pro Ausführung wird eine zufällige Korrelationskennung angezeigt. Die Aufzeichnung enthält nur SDK-Nachrichtentypen, Nutzerzustimmungsereignisse, den Zeitpunkt der NFC-Tag-Übergabe und das SDK-Endergebnis. Sie enthält **keine** APDUs, personenbezogenen Daten, PINs, Zertifikatstexte, TCToken-/Refresh-URLs oder Sitzungsschlüssel.
+
+**Wichtig:** Eine erfolgreiche SDK-Selbstauskunft liefert dadurch **noch keinen** Nachweis für chipseitige TA oder Sitzungsfortsetzung. Die neue Beobachtung ist einer von mehreren, unabhängig erforderlichen Datenströmen.
+
+Der vollständige Weg zu einer belastbaren Aussage ist im [Nachweisprotokoll](docs/VALIDATION_PLAN.md) dokumentiert: getrennte Client-/Chip-/Server- und Zustimmungsbeobachtungen, Kontrollversuche, genau definierte Fehlerszenarien und Kriterien für aussagekräftige positive oder negative Ergebnisse.
+
+Eine lokal erstellte Evidenzakte aus einem **ausdrücklich autorisierten Labor** kann mit dem integrierten, rein lesenden Prüfprogramm ausgewertet werden:
+
+```sh
+python3 tools/verify_lab_evidence.py tools/lab_evidence.example.json
+python3 -m unittest discover -s tools -p 'test_*.py'
+```
+
+Die Beispielakte ist absichtlich unvollständig; ihr erwartetes Ergebnis lautet `INCONCLUSIVE`. In einem echten Versuch werden referenzierte, freigegebene Belegdateien ausschließlich außerhalb des öffentlichen Repositorys abgelegt und über SHA-256 mit der Laborakte verknüpft. Das Prüfprogramm validiert Datei-Hashes, Struktur und Konsistenz und unterscheidet zwischen gemeldeter Client-Fortsetzung, gemeldeter Chipablehnung und einer berichteten vollständigen Authentisierungskette. Eine positive Klassifikation bleibt **prüfbedürftig**: Das Tool besitzt keine unabhängige Attestierung und überprüft keine TA-Signaturen.
+
+### Was noch fehlt, um den vollständigen Befund zu bestätigen oder zu widerlegen
+
+Ein autorisierter eID-Testserver, der gültige TA-Beweise für die vorgesehenen Fehlerzustände bereitstellen kann, eine unabhängige NFC-/APDU-Zustandsmessung und nachweisbare Testergebnisse mit einem echten nPA. Der öffentliche Governikus-Selbstauskunftsdienst wird **nicht** zur Fehlerinjektion oder als beliebiger TA-Signaturdienst verwendet.
 
 ## Limits
 
 - A successful `AUTH` result means the official SDK reported a completed authentication. It does **not** establish success of a second TA or a DA1/DA2 identity-binding issue.
-- The diagnostic reports contain synthetic-model results but **no** live TA fault injection or card APDU traces.
+- The diagnostic reports contain synthetic-model results and real *SDK callback event types*, but **no** live TA fault injection or card APDU traces.
 - The public Governikus endpoint is not an authorization to run disruptive protocol experiments. Any repeat-TA or malformed-EAC research should use a separately authorized lab server and test cards.
 - The official SDK requires extended-length NFC support; unsupported devices cannot complete the live flow.
 - The SDK runs as an embedded background service and is not equivalent to launching the installed standalone AusweisApp UI.
