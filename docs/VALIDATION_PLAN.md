@@ -18,6 +18,7 @@ Die TR-03127, Abschnitt 3.3.2, verbietet für deutsche Dokumente mehr als eine T
 
 1. **Genehmigtes Testsystem:** Ein ausdrücklich autorisierter Betreiber eines eID-Testservers und die für das Labor zugelassenen Terminalberechtigungen/Schlüssel. Für H-C müssen nachweislich zwei unterschiedliche, zugelassene Diensteanbieteridentitäten vorliegen. Den öffentlichen Selbstauskunftsdienst nicht als frei steuerbaren Testsignaturdienst behandeln.
 2. **Echte Karte:** Physischer nPA mit dokumentierter Chipgeneration, Ausweisanwendung, Firmware-/Profilstand soweit verfügbar, NFC-Lesegerät und AusweisApp-Codeversion. Ein Simulator erfüllt diese Bedingung nicht.
+   **PKI-Grenze:** Der reguläre Testdienst ist für Testausweise/Testzertifikate bestimmt. Ein produktiver nPA kann nur Zertifikatsketten akzeptieren, die auf einem tatsächlich im Chip verankerten CVCA-Vertrauenspunkt aufbauen. Ein eigenhändiger oder bloß im Android-Client vertrauter Test-CVCA erfüllt diese Voraussetzung nicht. Für einen Versuch auf einem produktiven nPA ist die Zusammenarbeit mit einem dafür autorisierten eID-Server-/Zertifikatsbetreiber erforderlich; ein Testausweis liefert nur Evidenz für dessen eigenes Profil.
 3. **Vollständiger, unabhängiger Kartenkanal:** Ein autorisierter Testleser oder instrumentierter lokaler Kartenstack erfasst die Reihenfolge der relevanten ISO-7816-APDUs, SW1/SW2, Transport- und RF-Reset-Ereignisse und den Zeitpunkt von PACE- und CA-Secure-Messaging. Passwörter, APDU-Payloads, persönliche Daten und Sitzungsschlüssel gehören nicht in den freigegebenen Bericht.
 4. **Serverbeobachtung:** Der Labor-eID-Server bestätigt die Gültigkeit der frisch erzeugten TA-Signatur und dokumentiert, ob sie zum konkreten Chip-Challenge-/PACE-Kontext passt. Die Signaturausstellung darf nicht allein aus einer HTTP-Statusmeldung gefolgert werden.
 5. **Client- und UI-Beobachtung:** Versionierte AusweisApp mit differenziertem EAC2-/PAOS-Statusprotokoll, plus unabhängige Dokumentation der angezeigten Diensteanbieteridentität, der tatsächlich freigegebenen Rechte und des serverseitig bestätigten Resultats.
@@ -28,6 +29,18 @@ Die TR-03127, Abschnitt 3.3.2, verbietet für deutsche Dokumente mehr als eine T
 Die Android-AIDL-Schnittstelle der offiziellen AusweisApp erlaubt RUN_AUTH und Statusnachrichten, gibt aber keine vollständige APDU-/TA-Sitzungshistorie heraus. Ein erfolgreiches zweites RUN_AUTH kann daher allein keine fortbestehende Kartensitzung nachweisen.
 
 `eidolon` behandelt den Kartenstatus beim Wechsel von Card-Leases absichtlich defensiv: Ein Karten-Reset kann die ursprünglich interessierende Sitzung beenden. Ein solcher Test ist wertlos für den behaupteten gleichen Kartensitzungskontext. Ein anderer Reader-/Instrumentierungspfad müsste dies erst unabhängig belegen.
+
+## Benötigte Mitwirkung eines Testbetreibers
+
+Eine konkrete Anfrage an einen eID-Server-Betreiber beziehungsweise eine Prüfstelle sollte folgende Fähigkeiten abklären:
+
+- Zwei getrennt nachweisbare Terminalidentitäten DA1/DA2 und ein klar definierter Laborberechtigungsumfang.
+- Bereitstellung und unabhängige Prüfung einer **gültigen** TA-Antwort für den jeweils festgelegten Testzustand; keine Herausgabe privater Terminalschlüssel an Eidelweiss.
+- Getrennt überprüfbare Server-, Client- und Chip-Messungen samt kryptographischen Zertifikatsreferenzen, ohne Speicherung personenbezogener Ausweisdaten in Freigabeprotokollen.
+- Vorversuche mit PersoSim und physischen Testkarten, gefolgt von einem gesondert genehmigten Test mit produktivem nPA **nur falls** der beteiligte Betreiber eine passende zulässige Produktionszertifikatskette besitzt.
+- Schriftlich bestätigte Freigabe der zulässigen Fehlerfälle und deren zeitliche/technische Grenzen.
+
+Die offizielle AusweisApp-Testinfrastruktur nennt ausdrücklich eID-Service-Anbieter und eID-Server-Hersteller als Anlaufstellen für die Anbindung. Ohne diese Kooperation kann ein negativer Versuch an einer fehlenden gültigen TA-Signatur scheitern, ohne Aussagen über die chipseitige TA-Sperre zu erlauben.
 
 ## Minimale Versuchsmatrix
 
