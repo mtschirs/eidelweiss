@@ -102,4 +102,20 @@ class SameKeyTaTestTest {
         assertEquals(SameKeyTaVerdict.INVALID_EVIDENCE,
             SameKeyTaTest.evaluate("x".repeat(65537)).verdict)
     }
+
+    @Test fun diagnosticExportCannotPretendToValidateAPDUOrCrypto() {
+        val value = SameKeyTaTest.evaluate(evidence(second = "ACCEPTED").toString())
+        val report = JSONObject(
+            DiagnosticReport.toJson(emptyList(), emptyList(), sameKeyAssessments = listOf(value))
+        )
+        assertEquals(5, report.getInt("schema_version"))
+        val entry = report.getJSONArray("same_key_ta_assessments").getJSONObject(0)
+        assertEquals(SameKeyTaVerdict.REPORTED_SECOND_TA_ACCEPTED_REQUIRES_REVIEW.name,
+            entry.getString("verdict"))
+        assertFalse(entry.getBoolean("live_injection_implemented"))
+        assertFalse(entry.getBoolean("raw_apdu_verified_by_app"))
+        assertFalse(entry.getBoolean("cryptographic_proof_verified_by_app"))
+        assertEquals("NOT_ESTABLISHED", report.getString("real_npa_security_conclusion"))
+    }
+
 }
