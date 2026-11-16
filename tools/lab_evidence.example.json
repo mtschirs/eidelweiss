@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "run_id": "example_0001",
+  "authorization_scope": "pending",
+  "context": {
+    "card_profile": "physical_npa_generation_to_be_recorded",
+    "client_source_revision": "commit_sha_to_be_recorded",
+    "reader_description": "instrumented_reader_to_be_recorded",
+    "server_description": "authorized_lab_only"
+  },
+  "observations": {
+    "baseline_completed": null,
+    "client_forwarded_after_eac2_error": null,
+    "single_chip_sm_session_confirmed": null,
+    "valid_second_ta_signature_confirmed": null,
+    "second_ta_reached_chip": null,
+    "second_ta_card_response": "not_observed",
+    "different_terminal_identity_confirmed": null,
+    "user_approved_da1_only": null,
+    "server_authentication_as_da2_confirmed": null
+  },
+  "artifacts": []
+}
