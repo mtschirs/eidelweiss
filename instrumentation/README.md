@@ -29,7 +29,8 @@ cd eidolon/AusweisApp
 cmake --preset ci-android-aar-review \
   -DCMAKE_CXX_FLAGS=-DEIDELWEISS_EAC2_LAB \
   -DCMAKE_PREFIX_PATH="<Qt Android toolchain / project dependencies>"
-cmake --build --preset ci-android-aar-review
+# ci/presets/ci.json sets binaryDir to the parent directory's "build".
+cmake --build ../build --parallel
 ```
 
 Achtung: Dieser Beispielaufruf ist kein universelles Buildrezept. Die Presets verweisen auf CI-spezifische Qt-/NDK-Abhängigkeiten und müssen an die lokale Qt-Toolchain angepasst werden. **Das native AAR wurde hier nicht erfolgreich für Android kompiliert**; die GitHub-CI baut gegen das **offizielle** SDK, solange kein lokaler AAR-Pfad angegeben wird.
