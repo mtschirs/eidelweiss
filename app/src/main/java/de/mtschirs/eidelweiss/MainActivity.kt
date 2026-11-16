@@ -47,6 +47,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     private lateinit var labFaultSelection: Spinner
     private lateinit var labSingleButton: Button
     private lateinit var labMatrixButton: Button
+    private lateinit var labTraceButton: Button
     private var resumed = false
     @Volatile private var observing = false
     @Volatile private var authenticating = false
@@ -210,7 +211,11 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
                 val accepted = matrix.count { it.secondTaAccepted }
                 status("Offline-Labor: ${matrix.size} Testfälle; zweite TA im Modell " +
                     "$accepted-mal akzeptiert. Kein echter Chipkontakt.")
+                updateButtons()
             }
+        }.also(stack::addView)
+        labTraceButton = action("Labor: letzte TA-Ablaufspur ansehen") {
+            if (!authenticating) showLastLabTrace()
         }.also(stack::addView)
         stack.addView(action("Datensparsamen JSON-Bericht teilen") {
             val json = DiagnosticReport.toJson(
@@ -233,6 +238,33 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     private fun addLabTrial(trial: LabTrial) {
         if (labTrials.size >= 100) labTrials.removeAt(0)
         labTrials.add(trial)
+        updateButtons()
+    }
+
+    private fun showLastLabTrace() {
+        val trial = labTrials.lastOrNull() ?: return
+        val details = buildString {
+            appendLine("Ausschließlich synthetische Offline-Ereignisse.")
+            appendLine("Keine reale Chip- oder Serversignatur.")
+            appendLine()
+            appendLine("Fehler: ${trial.fault.displayName}")
+            appendLine("Zweites Terminal: ${trial.nextTerminal.name}")
+            appendLine("Modellregel: ${trial.chipPolicy.name}")
+            appendLine("Erste TA abgeschlossen: ${trial.firstTaSucceeded}")
+            appendLine("Zweite TA im Modell akzeptiert: ${trial.secondTaAccepted}")
+            appendLine()
+            trial.steps.forEach { step ->
+                appendLine("${step.index}. ${step.operation} → ${step.result}")
+                appendLine("  Servertransaktion=${step.serverTransaction}; " +
+                    "Karten-Sitzung=${step.cardSession}; SM=${step.secureMessaging}")
+                appendLine("  ${step.note}")
+            }
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Offline-EAC2-/TA-Ablaufspur")
+            .setMessage(details)
+            .setPositiveButton("Schließen", null)
+            .show()
     }
 
     private fun recordLabTrial(trial: LabTrial) {
@@ -510,6 +542,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         labFaultSelection.isEnabled = !authenticating
         labSingleButton.isEnabled = !authenticating
         labMatrixButton.isEnabled = !authenticating
+        labTraceButton.isEnabled = !authenticating && labTrials.isNotEmpty()
         observeButton.text = if (observing) "Passive NFC-Beobachtung beenden"
             else "NFC passiv beobachten"
     }
