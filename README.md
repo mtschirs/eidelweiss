@@ -59,6 +59,12 @@ The GitHub Actions workflow builds and tests the app and uploads a debug APK art
 
 Both modes always set `developerMode=false`; no configurable eID server, insecure TLS mode, or live repeat-TA mechanism is offered. The SDK is the only component that communicates with the chip during live authentication.
 
+## Tatsächliche native C++-EAC2-Instrumentierung (opt-in)
+
+Die gepatchte **C++-Engine** liegt jetzt unter [`instrumentation/ausweisapp-overrides`](instrumentation/ausweisapp-overrides). Sie kann in einem **eigens kompilierten Android-Test-PKI-SDK** nach einer erfolgreich abgeschlossenen ersten TA vor Chip Authentication einen EAC2-Fehler injizieren. Die Eidelweiss-App bietet dann eine einmalige, bestätigungspflichtige Startaktion. Der gesamte Aufbau und seine Grenzen stehen in [`instrumentation/README.md`](instrumentation/README.md).
+
+**Nicht verwechseln:** Die reguläre GitHub-CI verwendet aus Gründen der Reproduzierbarkeit weiterhin das veröffentlichte Governikus-SDK. Sie baut das instrumentierte Qt-AAR nicht. Eine zweite gültige TA-Signatur oder eine chipseitig ausgeführte zweite TA gehört ebenfalls noch **nicht** zum implementierten Verhalten. Für diese Komponenten ist eine unterstützte, autorisierte Testserver-Anbindung erforderlich.
+
 ## One real-evidence test: same terminal key after EAC2 response error
 
 The Android screen now provides a **single narrowly defined evidence-validation flow**:
