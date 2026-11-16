@@ -76,6 +76,8 @@ Selbst dann ist die Bewertung auf die getesteten Chips, Codeversionen und Fehler
 
 Ein negativer Test ist nur aussagekräftig, wenn ein zweiter **gültiger** TA-Beweis wirklich bis zur Karte gelangt, die gleiche Secure-Messaging-Sitzung nachgewiesen wurde, und die Chipantwort den TA-Versuch selbst ablehnt.
 
+Bei Secure Messaging darf die äußere APDU-Statusinformation nicht vorschnell als erfolgreiche TA interpretiert werden: Für geschützte Antworten sind die MAC-geschützten Statusdaten (insbesondere DO'99) und ihre Zuordnung zum `EXTERNAL AUTHENTICATE`-Versuch durch den berechtigten Karten-/Serverstack auszuwerten. Ein einzelnes äußeres `9000` oder bloß eine empfangene PAOS-Nachricht genügt nicht.
+
 Eine abgebrochene HTTP-Anfrage, das Fehlen einer zweiten Signatur, ein NFC-Verbindungsabbruch oder die Ablehnung durch die AusweisApp sind **kein Nachweis**, dass der Chip die zweite TA selbst abgelehnt hat. Umgekehrt können sie H-A im konkret geprüften Clientpfad widerlegen.
 
 Eine universelle Verneinung für alle nPA-Generationen oder alle Fehlerpositionen ist durch einzelne Negativtests nicht möglich.
