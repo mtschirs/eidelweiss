@@ -74,6 +74,8 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     private var sdkNfcReaderState: NfcReaderState? = null
     private var lastReaderQueryAtMs = 0L
     private var runGeneration = 0
+    private var secretPromptSeen = false
+    private var nfcPromptWatchScheduled = false
     private var resultUrl: String? = null
     private val sdkEvidence = SdkEvidenceRecorder()
     private var scenarios = emptyList<ScenarioReport>()
@@ -481,6 +483,8 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         runGeneration++
         lastReaderQueryAtMs = 0
         sdkNfcReaderState = null
+        secretPromptSeen = false
+        nfcPromptWatchScheduled = false
         val correlationId = sdkEvidence.begin(activeSelfAuthEnvironment)
         if (nativeFaultArmedForRun) {
             sdkEvidence.mark(SdkEvidenceEvent.EAC2_NATIVE_FAULT_ARMED, SdkEvidenceSource.UI_ACTION)
@@ -550,9 +554,18 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
                 if (authenticating && rights != null) showCertificateAndRights(data)
             }
             "INSERT_CARD" -> status("SDK wartet auf Ausweis. Bitte stabil an NFC-Antenne halten.")
-            "ENTER_PIN" -> if (authenticating) promptForSecret("PIN", "SET_PIN", 6, data)
-            "ENTER_CAN" -> if (authenticating) promptForSecret("CAN", "SET_CAN", 6, data)
-            "ENTER_PUK" -> if (authenticating) promptForSecret("PUK", "SET_PUK", 10, data)
+            "ENTER_PIN" -> if (authenticating) {
+                secretPromptSeen = true
+                promptForSecret("PIN", "SET_PIN", 6, data)
+            }
+            "ENTER_CAN" -> if (authenticating) {
+                secretPromptSeen = true
+                promptForSecret("CAN", "SET_CAN", 6, data)
+            }
+            "ENTER_PUK" -> if (authenticating) {
+                secretPromptSeen = true
+                promptForSecret("PUK", "SET_PUK", 10, data)
+            }
             "ENTER_NEW_PIN" -> {
                 status("Unerwartete PIN-Änderungsanfrage: Vorgang wird abgebrochen.")
                 sdkBridge.send(SelfAuthProtocol.command("CANCEL"))
@@ -792,6 +805,28 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
             else "NFC passiv beobachten"
     }
 
+    private fun monitorFirstNfcHandoff() {
+        if (nfcPromptWatchScheduled) return
+        nfcPromptWatchScheduled = true
+        val generation = runGeneration
+        ui.postDelayed({
+            if (authenticating && runGeneration == generation && !secretPromptSeen) {
+                sdkEvidence.mark(
+                    SdkEvidenceEvent.SDK_NO_SECRET_PROMPT_AFTER_NFC,
+                    SdkEvidenceSource.APP_DISPATCH
+                )
+                val state = sdkNfcReaderState
+                if (state == NfcReaderState.CARD_RECOGNIZED) {
+                    status("SDK erkennt den Ausweis, aber bisher keine PIN/CAN/PUK-Abfrage. " +
+                        "Ausweis an der Antenne belassen.")
+                } else {
+                    status("SDK hat nach NFC-Übergabe noch keine PIN/CAN/PUK-Abfrage gesendet. " +
+                        "SDK-NFC-Leserstatus: " + (state?.description ?: "keine Antwort") + ".")
+                }
+            }
+        }, 8_000L)
+    }
+
     private fun requestNativeReaderStatus() {
         val now = SystemClock.elapsedRealtime()
         if (now - lastReaderQueryAtMs < 2_000L) return
@@ -853,6 +888,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
                         nfcForwarded = true
                         status("NFC-Tag an SDK-AIDL übergeben; Kartenerkennung noch nicht bestätigt.")
                         requestNativeReaderStatus()
+                        monitorFirstNfcHandoff()
                     }
                     else -> {
                         sdkEvidence.mark(
