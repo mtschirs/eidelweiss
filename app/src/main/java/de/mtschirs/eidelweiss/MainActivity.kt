@@ -29,6 +29,7 @@ import org.json.JSONObject
 import java.time.Instant
 import java.io.File
 import java.io.InputStreamReader
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Research companion for a NORMAL Governikus self-disclosure.
@@ -47,6 +48,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     private lateinit var cancelButton: Button
     private lateinit var continueButton: Button
     private lateinit var observeButton: Button
+    private lateinit var nfcPreflightButton: Button
     private lateinit var resultButton: Button
     private lateinit var labFaultSelection: Spinner
     private lateinit var labSingleButton: Button
@@ -57,6 +59,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     private lateinit var sameKeyBaselineButton: Button
     @Volatile private var resumed = false
     @Volatile private var observing = false
+    private val nfcPreflightPending = AtomicBoolean(false)
     @Volatile private var authenticating = false
     private var sdkReady = false
     private var activeSelfAuthEnvironment = SelfAuthEnvironment.PRODUCTION
@@ -131,6 +134,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
 
     override fun onPause() {
         resumed = false
+        nfcPreflightPending.set(false)
         runCatching { adapter?.disableReaderMode(this) }
         super.onPause()
     }
@@ -217,9 +221,28 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
             setPadding(0, 24, 0, 10)
         })
         observeButton = action("NFC passiv beobachten") {
-            if (!authenticating) {
+            if (!authenticating && !nfcPreflightPending.get()) {
                 observing = !observing
                 syncNfc()
+                updateButtons()
+            }
+        }.also(stack::addView)
+        stack.addView(TextView(this).apply {
+            text = "NFC-Verbindung unabhängig vom AusweisApp-SDK prüfen: " +
+                "öffentliche Datei EF.CardAccess (ohne PIN, PACE und Personendaten)."
+            textSize = 13f
+            setPadding(0, 6, 0, 8)
+        })
+        nfcPreflightButton = action("NFC-Lesetest: öffentliches EF.CardAccess") {
+            if (!authenticating && nfcPreflightPending.compareAndSet(false, true)) {
+                observing = false
+                syncNfc()
+                status("NFC-Lesetest aktiviert: Testausweis jetzt neu auflegen und ruhig halten. " +
+                    "Es werden nur zwei ungeschützte öffentliche APDUs gesendet.")
+                updateButtons()
+            } else if (nfcPreflightPending.compareAndSet(true, false)) {
+                syncNfc()
+                status("NFC-Lesetest abgebrochen.")
                 updateButtons()
             }
         }.also(stack::addView)
@@ -477,6 +500,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
             return
         }
         observing = false
+        nfcPreflightPending.set(false)
         activeSelfAuthEnvironment =
             SelfAuthEnvironment.entries[selfAuthEnvironmentSelection.selectedItemPosition]
         authenticating = true
@@ -792,7 +816,10 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         cancelButton.isEnabled = authenticating
         continueButton.visibility = View.GONE
         resultButton.isEnabled = resultUrl != null
-        observeButton.isEnabled = !authenticating
+        observeButton.isEnabled = !authenticating && !nfcPreflightPending.get()
+        nfcPreflightButton.isEnabled = !authenticating && adapter?.isEnabled == true
+        nfcPreflightButton.text = if (nfcPreflightPending.get())
+            "NFC-Lesetest abbrechen" else "NFC-Lesetest: öffentliches EF.CardAccess"
         labFaultSelection.isEnabled = !authenticating
         labSingleButton.isEnabled = !authenticating
         labMatrixButton.isEnabled = !authenticating
@@ -849,7 +876,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         if (!resumed) return
         val nfc = adapter ?: return
         runCatching {
-            if (authenticating || observing) {
+            if (authenticating || observing || nfcPreflightPending.get()) {
                 nfc.enableReaderMode(
                     this, this,
                     NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_NFC_B or
@@ -864,6 +891,22 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
 
     override fun onTagDiscovered(tag: Tag) {
         if (!resumed) return
+
+        // Explicitly separate the very small ISO-DEP preflight from the SDK.
+        // Preflight always closes IsoDep and cannot run while authenticating.
+        if (!authenticating && nfcPreflightPending.compareAndSet(true, false)) {
+            val preflight = NfcPreflightProbe.run(tag)
+            ui.post {
+                if (!resumed) return@post
+                val summary = preflight.safeSummary()
+                if (observations.size >= 100) observations.removeAt(0)
+                observations += summary
+                status(summary)
+                syncNfc()
+                updateButtons()
+            }
+            return
+        }
 
         // The official AusweisApp SDK forwards the fresh Tag immediately
         // inside ReaderCallback, not after a UI-thread scheduling delay.
