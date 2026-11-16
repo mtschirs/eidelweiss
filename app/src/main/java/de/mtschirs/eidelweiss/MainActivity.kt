@@ -51,6 +51,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     private lateinit var labMatrixButton: Button
     private lateinit var labTraceButton: Button
     private lateinit var sameKeyTaImportButton: Button
+    private lateinit var sameKeyBaselineButton: Button
     private var resumed = false
     @Volatile private var observing = false
     @Volatile private var authenticating = false
@@ -262,7 +263,20 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
             textSize = 13f
             setPadding(0, 0, 0, 12)
         })
-        sameKeyTaImportButton = action("Gleicher Terminalschlüssel: Evidenzdatei prüfen") {
+        sameKeyBaselineButton = action("1. Test-PKI-Baseline mit Testausweis") {
+            if (!authenticating && sdkReady) {
+                selfAuthEnvironmentSelection.setSelection(SelfAuthEnvironment.TEST_PKI.ordinal)
+                startNormalSelfDisclosure()
+            }
+        }.also(stack::addView)
+        stack.addView(TextView(this).apply {
+            text = "2. Definierter EAC2-Fehler nach erster erfolgreicher TA " +
+                "und erneute TA mit identischem PK: nur mit unabhängig " +
+                "instrumentiertem, autorisiertem Testlabor ausführbar."
+            textSize = 13f
+            setPadding(0, 4, 0, 4)
+        })
+        sameKeyTaImportButton = action("3. Gleicher Terminalschlüssel: Evidenzdatei prüfen") {
             if (!authenticating) openSameKeyEvidenceDocument()
         }.also(stack::addView)
         stack.addView(action("Datensparsamen JSON-Bericht teilen") {
@@ -669,6 +683,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         labMatrixButton.isEnabled = !authenticating
         labTraceButton.isEnabled = !authenticating && labTrials.isNotEmpty()
         sameKeyTaImportButton.isEnabled = !authenticating
+        sameKeyBaselineButton.isEnabled = sdkReady && !authenticating
         observeButton.text = if (observing) "Passive NFC-Beobachtung beenden"
             else "NFC passiv beobachten"
     }
