@@ -88,6 +88,7 @@ object DiagnosticReport {
                 .put("started_at_utc", run.startedUtc)
                 .put("ended_at_utc", run.endedUtc ?: JSONObject.NULL)
                 .put("source", "APP_LEVEL_SDK_CALLBACKS_AND_USER_ACTIONS_ONLY")
+                .put("environment", run.environment)
                 .put("contains_apdu_trace", false)
                 .put("proves_chip_session_continuity", false)
                 .put("proves_terminal_authentication", false)

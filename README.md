@@ -4,7 +4,7 @@ Android eID diagnostics and **regular Governikus self-disclosure** using the off
 
 The app has three clearly separated features:
 
-1. **Genuine normal self-disclosure:** the published `com.governikus:ausweisapp:2.6.2` AAR handles PACE, EAC (TA/CA), TLS/PAOS, and NFC. The official production `selfAuthentication.url` from AusweisApp's `resources/config.json.in` is used. Eidelweiss displays the signed certificate's service-provider disclosures, validity, and requested data categories and asks for explicit approval before sending `ACCEPT`. PIN/CAN/PUK are entered only when requested by the SDK.
+1. **Genuine normal self-disclosure:** the published `com.governikus:ausweisapp:2.6.2` AAR handles PACE, EAC (TA/CA), TLS/PAOS, and NFC. Choose the official **production** (`selfAuthentication.url`) or **Test-PKI** (`selfAuthentication.testUrl`) endpoint from AusweisApp's `resources/config.json.in` before starting. Eidelweiss displays the signed certificate's service-provider disclosures, validity, and requested data categories and asks for explicit approval before sending `ACCEPT`. PIN/CAN/PUK are entered only when requested by the SDK.
 2. **Passive NFC observation:** when no authentication is active, Android reports non-identifying ISO-DEP capabilities. No card APDU is transmitted by this feature.
 3. **Offline synthetic EAC error matrix:** deterministic reference state machines for regression hypotheses.
 4. **EAC2 fault-injection lab and second-TA model:** select a fault location and simulate a fresh server transaction with an unchanged chip session. Run the full test matrix for conservative versus permissive card-policy models. **No live card or public server is contacted by this lab.**
@@ -16,7 +16,7 @@ Android NFC Reader Mode -> Tag -> AusweisAppSdkBridge.updateNfcTag()
                                          |
                      Official Governikus Android AAR 2.6.2
                                          |
-                  Governikus production self-disclosure
+           Governikus production or Test-PKI self-disclosure
                                          |
                                AUTH result -> URL
                                          |
@@ -51,13 +51,13 @@ The GitHub Actions workflow builds and tests the app and uploads a debug APK art
 ## Normal self-disclosure walkthrough
 
 1. Open Eidelweiss and ensure **AusweisApp-SDK bereit** is displayed.
-2. Tap **Selbstauskunft starten**. Keep the nPA at the NFC antenna when requested.
+2. Select **Test-PKI (Testausweis)** for a physical test card (or **Produktiv (Echtausweis)** for a genuine ID card). Then tap **Selbstauskunft starten**. Keep the nPA at the NFC antenna when requested.
 3. Eidelweiss fetches the signed provider certificate using `GET_CERTIFICATE` after `ACCESS_RIGHTS` and displays the provider, legal terms including address/email/supervisory authority, expiration, and all requested data categories.
 4. Approve or cancel explicitly. Enter PIN/CAN/PUK only on SDK request; the app does not store, log, or export their values.
 5. When the SDK returns its final `AUTH` message, tap **Selbstauskunft-Ergebnis im Browser öffnen**. The refresh URL is kept **in-memory only** and omitted from diagnostic reports.
 6. Optionally share a JSON report. The exported AUTH result only includes start/end timestamps, `ok`/`error`, a sanitized failure identifier, whether the certificate/rights were shown, and whether an NFC tag was forwarded.
 
-The production mode always sets `developerMode=false`; no configurable eID server, insecure TLS mode, or live repeat-TA mechanism is offered. The SDK is the only component that communicates with the chip during live authentication.
+Both modes always set `developerMode=false`; no configurable eID server, insecure TLS mode, or live repeat-TA mechanism is offered. The SDK is the only component that communicates with the chip during live authentication.
 
 ## EAC2 fault laboratory (offline)
 
@@ -82,7 +82,7 @@ These test cases do **not** issue APDUs, forge or acquire TA signatures, bypass 
 
 **Neu:** Während einer regulären Selbstauskunft führt Eidelweiss ein datensparsames **echtes SDK-Ereignisprotokoll** (`sdk_observation_runs`, JSON Schema v4). Pro Ausführung wird eine zufällige Korrelationskennung angezeigt. Die Aufzeichnung enthält nur SDK-Nachrichtentypen, Nutzerzustimmungsereignisse, den Zeitpunkt der NFC-Tag-Übergabe und das SDK-Endergebnis. Sie enthält **keine** APDUs, personenbezogenen Daten, PINs, Zertifikatstexte, TCToken-/Refresh-URLs oder Sitzungsschlüssel.
 
-**Wichtig:** Eine erfolgreiche SDK-Selbstauskunft liefert dadurch **noch keinen** Nachweis für chipseitige TA oder Sitzungsfortsetzung. Die neue Beobachtung ist einer von mehreren, unabhängig erforderlichen Datenströmen.
+**Wichtig:** Eine erfolgreiche SDK-Selbstauskunft liefert dadurch **noch keinen** Nachweis für chipseitige TA oder Sitzungsfortsetzung. Die neue Beobachtung ist einer von mehreren, unabhängig erforderlichen Datenströmen. Der JSON-Bericht kennzeichnet nun ausdrücklich `environment=TEST_PKI` oder `environment=PRODUCTION`.
 
 Der vollständige Weg zu einer belastbaren Aussage ist im [Nachweisprotokoll](docs/VALIDATION_PLAN.md) dokumentiert: getrennte Client-/Chip-/Server- und Zustimmungsbeobachtungen, Kontrollversuche, genau definierte Fehlerszenarien und Kriterien für aussagekräftige positive oder negative Ergebnisse.
 

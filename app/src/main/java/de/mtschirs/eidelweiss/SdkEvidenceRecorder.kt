@@ -23,7 +23,8 @@ data class SdkEvidenceRun(
     val correlationId: String,
     val startedUtc: String,
     val endedUtc: String?,
-    val marks: List<SdkEvidenceMark>
+    val marks: List<SdkEvidenceMark>,
+    val environment: String = SelfAuthEnvironment.PRODUCTION.name
 )
 
 /**
@@ -39,15 +40,16 @@ class SdkEvidenceRecorder(
         val id: String,
         val startedUtc: String,
         val baseMs: Long,
-        val marks: MutableList<SdkEvidenceMark> = mutableListOf()
+        val marks: MutableList<SdkEvidenceMark> = mutableListOf(),
+        val environment: String = SelfAuthEnvironment.PRODUCTION.name
     )
 
     private val completed = mutableListOf<SdkEvidenceRun>()
     private var active: Pending? = null
 
-    fun begin(): String {
+    fun begin(environment: SelfAuthEnvironment = SelfAuthEnvironment.PRODUCTION): String {
         require(active == null) { "An SDK observation run is already active" }
-        val entry = Pending(idProvider(), clockUtc(), clockMs())
+        val entry = Pending(idProvider(), clockUtc(), clockMs(), environment = environment.name)
         active = entry
         mark(SdkEvidenceEvent.RUN_AUTH_REQUESTED, SdkEvidenceSource.APP_DISPATCH)
         return entry.id
@@ -83,7 +85,8 @@ class SdkEvidenceRecorder(
     fun end() {
         val entry = active ?: return
         mark(SdkEvidenceEvent.RUN_ENDED, SdkEvidenceSource.APP_DISPATCH)
-        completed += SdkEvidenceRun(entry.id, entry.startedUtc, clockUtc(), entry.marks.toList())
+        completed += SdkEvidenceRun(entry.id, entry.startedUtc, clockUtc(), entry.marks.toList(),
+            entry.environment)
         if (completed.size > 20) completed.removeAt(0)
         active = null
     }
@@ -92,7 +95,7 @@ class SdkEvidenceRecorder(
         val runs = completed.toMutableList()
         val current = active
         if (current != null) runs += SdkEvidenceRun(
-            current.id, current.startedUtc, null, current.marks.toList()
+            current.id, current.startedUtc, null, current.marks.toList(), current.environment
         )
         return runs
     }

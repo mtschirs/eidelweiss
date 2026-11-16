@@ -7,14 +7,29 @@ import java.time.Instant
  * Normal, unmodified Governikus self-disclosure only. No configurable TA provider,
  * no EAC replay, no fault-injection or session substitution in this class.
  */
+/**
+ * The endpoints below are pinned to the unmodified selfAuthentication URL pair from
+ * Governikus/AusweisApp resources/config.json.in (url and testUrl).
+ * TEST_PKI changes the legitimate service, not the SDK's trust or TLS checks.
+ */
+enum class SelfAuthEnvironment(val displayName: String, val reportMode: String) {
+    PRODUCTION("Produktiv (Echtausweis)", "UNMODIFIED_AUSWEISAPP_SDK_PRODUCTION"),
+    TEST_PKI("Test-PKI (Testausweis)", "UNMODIFIED_AUSWEISAPP_SDK_TEST_PKI")
+}
+
 object SelfAuthProtocol {
-    // From the official AusweisApp resources/config.json.in selfAuthentication.url.
     const val PRODUCTION_TC_TOKEN_URL =
         "https://www.autentapp.de/AusweisAuskunft/WebServiceRequesterServlet?mode=json"
+    const val TEST_PKI_TC_TOKEN_URL =
+        "https://test.governikus-eid.de/AusweisAuskunft/WebServiceRequesterServlet?mode=json"
 
-    fun startCommand(): JSONObject = JSONObject()
+    fun startCommand(
+        environment: SelfAuthEnvironment = SelfAuthEnvironment.PRODUCTION
+    ): JSONObject = JSONObject()
         .put("cmd", "RUN_AUTH")
-        .put("tcTokenURL", PRODUCTION_TC_TOKEN_URL)
+        .put("tcTokenURL", if (environment == SelfAuthEnvironment.TEST_PKI)
+            TEST_PKI_TC_TOKEN_URL else PRODUCTION_TC_TOKEN_URL)
+        // Keep all certificate, TLS, and same-origin checks active also for test cards.
         .put("developerMode", false)
         .put("status", true)
 
@@ -59,11 +74,12 @@ object SelfAuthProtocol {
     }
 
     fun summarize(payload: JSONObject, startedAtUtc: String, certificateShown: Boolean,
-                  rightsShown: Boolean, nfcForwarded: Boolean): AuthRunSummary =
+                  rightsShown: Boolean, nfcForwarded: Boolean,
+                  environment: SelfAuthEnvironment = SelfAuthEnvironment.PRODUCTION): AuthRunSummary =
         AuthRunSummary(
             startedAtUtc = startedAtUtc,
             finishedAtUtc = Instant.now().toString(),
-            mode = "UNMODIFIED_AUSWEISAPP_SDK",
+            mode = environment.reportMode,
             outcome = safeOutcome(payload),
             reason = safeReason(payload),
             certificateShown = certificateShown,

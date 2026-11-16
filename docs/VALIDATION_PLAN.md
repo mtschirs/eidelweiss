@@ -14,6 +14,16 @@ Drei voneinander unabhängige Eigenschaften sind zu belegen:
 
 Die TR-03127, Abschnitt 3.3.2, verbietet für deutsche Dokumente mehr als eine TA pro Kartensitzung. Die TR-03110-3, Anhang F.1/F.2, definiert die Sitzung durch Secure Messaging und erklärt, dass ein Wechsel der Schlüssel innerhalb derselben Sitzung keinen Sitzungswechsel darstellt. Eine HTTP-/PAOS-Servertransaktion ist **nicht** dieselbe Begriffsgröße wie die Kartensitzung.
 
+## Bereits verfügbar: offizieller Test-PKI-Selbstauskunftsdienst
+
+Die AusweisApp dokumentiert ausdrücklich einen Testmodus für die Selbstauskunft mit **physischen Testausweisen**. Das SDK kann den offiziellen Eintrag `selfAuthentication.testUrl` aus `resources/config.json.in` als `RUN_AUTH.tcTokenURL` verwenden:
+
+`https://test.governikus-eid.de/AusweisAuskunft/WebServiceRequesterServlet?mode=json`
+
+Eidelweiss bietet dafür den Modus **Test-PKI (Testausweis)** an. Der Live-Durchlauf verwendet ausschließlich das unveränderte Governikus-SDK, `developerMode=false` und dieselbe ausdrückliche Zertifikats-/Rechtefreigabe wie die reguläre Selbstauskunft. Das liefert mit einem physischen Testausweis eine wertvolle **Baseline der echten EAC-Interoperabilität**, ohne eigene Zertifikate auszustellen.
+
+Damit ist der Baseline-Versuch nicht mehr von einer eigenen Labor-CA abhängig. Ein öffentlich erreichbarer Testdienst stellt aber nicht notwendigerweise eine Schnittstelle für willkürliche Folgesignaturen oder wiederholte TA innerhalb desselben Chip-Kontexts bereit. Jede darüber hinausgehende Fehlerinjektion bleibt vom Umfang eines regulär bereitgestellten Tests zu unterscheiden.
+
 ## Randbedingungen eines gültigen Hardwareversuchs
 
 1. **Genehmigtes Testsystem:** Ein ausdrücklich autorisierter Betreiber eines eID-Testservers und die für das Labor zugelassenen Terminalberechtigungen/Schlüssel. Für H-C müssen nachweislich zwei unterschiedliche, zugelassene Diensteanbieteridentitäten vorliegen. Den öffentlichen Selbstauskunftsdienst nicht als frei steuerbaren Testsignaturdienst behandeln.

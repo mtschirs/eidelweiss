@@ -39,6 +39,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     private lateinit var sdkBridge: AusweisAppSdkBridge
     private lateinit var output: TextView
     private lateinit var sdkButton: Button
+    private lateinit var selfAuthEnvironmentSelection: Spinner
     private lateinit var startButton: Button
     private lateinit var cancelButton: Button
     private lateinit var continueButton: Button
@@ -52,6 +53,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     @Volatile private var observing = false
     @Volatile private var authenticating = false
     private var sdkReady = false
+    private var activeSelfAuthEnvironment = SelfAuthEnvironment.PRODUCTION
     private var apiLevelRequested: Int? = null
     private var rights: JSONObject? = null
     private var activeDialog: AlertDialog? = null
@@ -147,6 +149,27 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
             sdkBridge.bind()
             status("SDK-Verbindung angefordert.")
         }.also(stack::addView)
+        stack.addView(TextView(this).apply {
+            text = "Selbstauskunfts-Umgebung (offizieller Dienst)"
+            textSize = 17f
+            setPadding(0, 12, 0, 6)
+        })
+        selfAuthEnvironmentSelection = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@MainActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                SelfAuthEnvironment.entries.map { it.displayName }
+            )
+            // Production remains the default on app launch to prevent a silent mode switch.
+            setSelection(SelfAuthEnvironment.PRODUCTION.ordinal)
+        }
+        stack.addView(selfAuthEnvironmentSelection)
+        stack.addView(TextView(this).apply {
+            text = "Test-PKI erfordert einen physischen Testausweis. " +
+                "Alle Sicherheitsprüfungen bleiben auch im Testmodus aktiv."
+            textSize = 13f
+            setPadding(0, 0, 0, 16)
+        })
         startButton = action("Selbstauskunft starten") { startNormalSelfDisclosure() }
             .also(stack::addView)
         cancelButton = action("Authentisierung abbrechen") {
@@ -297,8 +320,10 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
             return
         }
         observing = false
+        activeSelfAuthEnvironment =
+            SelfAuthEnvironment.entries[selfAuthEnvironmentSelection.selectedItemPosition]
         authenticating = true
-        val correlationId = sdkEvidence.begin()
+        val correlationId = sdkEvidence.begin(activeSelfAuthEnvironment)
         startedAtUtc = Instant.now().toString()
         status("Evidenzkennung: $correlationId")
         certificateShown = false
@@ -309,8 +334,11 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         syncNfc()
         updateButtons()
-        status("Reguläre Selbstauskunft gestartet. Kein Fehlertest aktiv.")
-        if (!sdkBridge.send(SelfAuthProtocol.startCommand())) finishLocally("sdk_not_connected")
+        status("Reguläre Selbstauskunft: ${activeSelfAuthEnvironment.displayName}. " +
+            "Unverändertes SDK, developerMode=false, keine Fehlerinjektion.")
+        if (!sdkBridge.send(SelfAuthProtocol.startCommand(activeSelfAuthEnvironment))) {
+            finishLocally("sdk_not_connected")
+        }
     }
 
     private fun handleSdkMessage(data: JSONObject) {
@@ -518,7 +546,8 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         sdkEvidence.end()
         closeDialog()
         authHistory += SelfAuthProtocol.summarize(
-            message, startedAtUtc, certificateShown, rightsShown, nfcForwarded
+            message, startedAtUtc, certificateShown, rightsShown, nfcForwarded,
+            activeSelfAuthEnvironment
         )
         if (authHistory.size > 20) authHistory.removeAt(0)
         resultUrl = if (SelfAuthProtocol.safeOutcome(message) == "ok")
@@ -538,7 +567,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         closeDialog()
         authHistory += AuthRunSummary(
             startedAtUtc, Instant.now().toString(),
-            "UNMODIFIED_AUSWEISAPP_SDK", "incomplete", reason,
+            activeSelfAuthEnvironment.reportMode, "incomplete", reason,
             certificateShown, rightsShown, nfcForwarded
         )
         if (authHistory.size > 20) authHistory.removeAt(0)
@@ -563,6 +592,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     private fun updateButtons() {
         sdkButton.isEnabled = !sdkReady
         startButton.isEnabled = sdkReady && !authenticating
+        selfAuthEnvironmentSelection.isEnabled = !authenticating
         cancelButton.isEnabled = authenticating
         continueButton.visibility = View.GONE
         resultButton.isEnabled = resultUrl != null
