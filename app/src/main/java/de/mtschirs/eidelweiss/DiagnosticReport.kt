@@ -12,7 +12,8 @@ object DiagnosticReport {
     fun toJson(
         scenarios: List<ScenarioReport>,
         nfcObservations: List<String>,
-        authRuns: List<AuthRunSummary> = emptyList()
+        authRuns: List<AuthRunSummary> = emptyList(),
+        labRuns: List<LabTrial> = emptyList()
     ): String {
         val cases = JSONArray()
         scenarios.forEach { scenario ->
@@ -43,14 +44,44 @@ object DiagnosticReport {
                 .put("access_rights_shown", run.accessRightsShown)
                 .put("nfc_tag_forwarded", run.nfcTagForwarded))
         }
+        val lab = JSONArray()
+        labRuns.forEach { trial ->
+            val timeline = JSONArray()
+            trial.steps.forEach { step ->
+                timeline.put(JSONObject()
+                    .put("step", step.index)
+                    .put("server_transaction", step.serverTransaction)
+                    .put("card_session", step.cardSession)
+                    .put("operation", step.operation.name)
+                    .put("result", step.result.name)
+                    .put("secure_messaging", step.secureMessaging.name)
+                    .put("successful_ta_count", step.successfulTaCount)
+                    .put("note", step.note))
+            }
+            lab.put(JSONObject()
+                .put("id", trial.id)
+                .put("fault", trial.fault.name)
+                .put("fault_stage", trial.fault.stage)
+                .put("card_policy", trial.chipPolicy.name)
+                .put("second_terminal", trial.nextTerminal.name)
+                .put("first_ta_succeeded", trial.firstTaSucceeded)
+                .put("first_ta_proof_attempted", trial.firstTaProofAttempted)
+                .put("second_ta_accepted_in_model", trial.secondTaAccepted)
+                .put("chip_session_preserved_in_model", trial.cardSessionPreserved)
+                .put("execution_mode", "PURE_OFFLINE_SYNTHETIC")
+                .put("real_card_evidence", false)
+                .put("real_server_evidence", false)
+                .put("steps", timeline))
+        }
         return JSONObject()
-            .put("schema_version", 2)
+            .put("schema_version", 3)
             .put("generated_at_utc", Instant.now().toString())
-            .put("scope", "OFFLINE_SYNTHETIC_PASSIVE_NFC_AND_STANDARD_AUSWEISAPP_SDK_SELF_AUTH")
+            .put("scope", "OFFLINE_SYNTHETIC_FAULT_LAB_PASSIVE_NFC_AND_STANDARD_AUSWEISAPP_SDK_SELF_AUTH")
             .put("real_npa_security_conclusion", "NOT_ESTABLISHED")
             .put("nfc_observations", JSONArray(nfcObservations))
             .put("authentication_runs", auth)
             .put("cases", cases)
+            .put("eac2_fault_lab_trials", lab)
             .toString(2)
     }
 }

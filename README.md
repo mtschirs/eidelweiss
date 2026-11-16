@@ -6,7 +6,8 @@ The app has three clearly separated features:
 
 1. **Genuine normal self-disclosure:** the published `com.governikus:ausweisapp:2.6.2` AAR handles PACE, EAC (TA/CA), TLS/PAOS, and NFC. The official production `selfAuthentication.url` from AusweisApp's `resources/config.json.in` is used. Eidelweiss displays the signed certificate's service-provider disclosures, validity, and requested data categories and asks for explicit approval before sending `ACCEPT`. PIN/CAN/PUK are entered only when requested by the SDK.
 2. **Passive NFC observation:** when no authentication is active, Android reports non-identifying ISO-DEP capabilities. No card APDU is transmitted by this feature.
-3. **Offline synthetic EAC error matrix:** deterministic reference state machines for regression hypotheses. **These are not live chip tests**.
+3. **Offline synthetic EAC error matrix:** deterministic reference state machines for regression hypotheses.
+4. **EAC2 fault-injection lab and second-TA model:** select a fault location and simulate a fresh server transaction with an unchanged chip session. Run the full test matrix for conservative versus permissive card-policy models. **No live card or public server is contacted by this lab.**
 
 ## Technical architecture
 
@@ -21,6 +22,7 @@ Android NFC Reader Mode -> Tag -> AusweisAppSdkBridge.updateNfcTag()
                                          |
                explicit action: open result in browser
 
+Eac2FaultLab (offline) ----> DiagnosticReport JSON
 OfflineMatrix (synthetic) ---> DiagnosticReport JSON
 Passive NFC (no APDUs) ----> DiagnosticReport JSON
 Normal SDK AUTH (redacted) -> DiagnosticReport JSON
@@ -55,7 +57,26 @@ The GitHub Actions workflow builds and tests the app and uploads a debug APK art
 5. When the SDK returns its final `AUTH` message, tap **Selbstauskunft-Ergebnis im Browser öffnen**. The refresh URL is kept **in-memory only** and omitted from diagnostic reports.
 6. Optionally share a JSON report. The exported AUTH result only includes start/end timestamps, `ok`/`error`, a sanitized failure identifier, whether the certificate/rights were shown, and whether an NFC tag was forwarded.
 
-The production mode always sets `developerMode=false`; no configurable eID server, insecure TLS mode, or repeat-TA mechanism is offered. The SDK is the only component that communicates with the chip during live authentication.
+The production mode always sets `developerMode=false`; no configurable eID server, insecure TLS mode, or live repeat-TA mechanism is offered. The SDK is the only component that communicates with the chip during live authentication.
+
+## EAC2 fault laboratory (offline)
+
+The **Labor: Fehler injizieren und zweite TA simulieren** button runs a selected fault in a synthetic EAC2 flow. The separate matrix button runs all scenarios:
+
+| Fault | Initial TA proof executed? | Interpretive value |
+| --- | --- | --- |
+| CVC chain missing | No | Pre-TA client error; second TA is only a model transition |
+| PSO Verify Certificate rejected | No | Card-side certificate rejection model |
+| MSE Set AT rejected | No | TA setup rejected before signature proof |
+| EXTERNAL AUTHENTICATE rejected | Yes, but failed | Retry is explicitly blocked by the conservative model |
+| Chip Authentication rejected | Yes, succeeded | First TA remains completed despite later CA failure |
+| No fault (TA/CA success) | Yes, succeeded | Second TA rejected by conservative model |
+
+The matrix also includes a permissive **hypothesis-only** policy for the distinct-terminal case. These differences are intentional inputs, not observational conclusions.
+
+Each trace records the modeled server-transaction ordinal, chip-session ordinal, secure-messaging state, TA count, failure point and whether the second TA was accepted **by the model**. A second server transaction does not reset the simulated chip session. If the model restores a PACE context after CA, it deliberately preserves the TA history. All reports explicitly mark `real_card_evidence=false` and `real_server_evidence=false`.
+
+These test cases do **not** issue APDUs, forge or acquire TA signatures, bypass consent, or alter the official SDK. The exported JSON schema is version 3. For actual chip evidence, a separately authorized eID laboratory and instrumented test reader are required.
 
 ## Limits
 

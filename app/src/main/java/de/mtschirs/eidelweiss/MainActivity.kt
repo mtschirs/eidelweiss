@@ -21,6 +21,8 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Spinner
+import android.widget.ArrayAdapter
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
@@ -42,6 +44,9 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     private lateinit var continueButton: Button
     private lateinit var observeButton: Button
     private lateinit var resultButton: Button
+    private lateinit var labFaultSelection: Spinner
+    private lateinit var labSingleButton: Button
+    private lateinit var labMatrixButton: Button
     private var resumed = false
     @Volatile private var observing = false
     @Volatile private var authenticating = false
@@ -55,6 +60,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     private var startedAtUtc = ""
     private var resultUrl: String? = null
     private var scenarios = emptyList<ScenarioReport>()
+    private val labTrials = mutableListOf<LabTrial>()
     private val observations = mutableListOf<String>()
     private val authHistory = mutableListOf<AuthRunSummary>()
     private val statusLines = mutableListOf<String>()
@@ -170,8 +176,46 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
                 status("Offline ${scenario.name}: ${if (scenario.anomaly) "Modell-Fortsetzung" else "keine Modell-Fortsetzung"}")
             }
         })
+        stack.addView(TextView(this).apply {
+            text = "EAC2-Fehlerinjektion / zweite TA — nur Offline-Labor"
+            textSize = 17f
+            setPadding(0, 24, 0, 10)
+        })
+        stack.addView(TextView(this).apply {
+            text = "Achtung: Die Testfälle erzeugen keine APDUs oder Signaturen. " +
+                "Eine neue Servertransaktion und die fortbestehende PACE-Sitzung " +
+                "werden ausschließlich simuliert."
+            textSize = 13f
+            setPadding(0, 0, 0, 12)
+        })
+        labFaultSelection = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@MainActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                LabFaultPoint.entries.map { it.displayName }
+            )
+        }
+        stack.addView(labFaultSelection)
+        labSingleButton = action("Labor: Fehler injizieren und zweite TA simulieren") {
+            if (!authenticating) {
+                val fault = LabFaultPoint.entries[labFaultSelection.selectedItemPosition]
+                val trial = Eac2FaultLab.run(fault)
+                recordLabTrial(trial)
+            }
+        }.also(stack::addView)
+        labMatrixButton = action("Labor: gesamte EAC2-/TA-Matrix") {
+            if (!authenticating) {
+                val matrix = Eac2FaultLab.runMatrix()
+                matrix.forEach(::addLabTrial)
+                val accepted = matrix.count { it.secondTaAccepted }
+                status("Offline-Labor: ${matrix.size} Testfälle; zweite TA im Modell " +
+                    "$accepted-mal akzeptiert. Kein echter Chipkontakt.")
+            }
+        }.also(stack::addView)
         stack.addView(action("Datensparsamen JSON-Bericht teilen") {
-            val json = DiagnosticReport.toJson(scenarios, observations.toList(), authHistory.toList())
+            val json = DiagnosticReport.toJson(
+                scenarios, observations.toList(), authHistory.toList(), labTrials.toList()
+            )
             startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
                 type = "application/json"
                 putExtra(Intent.EXTRA_TEXT, json)
@@ -184,6 +228,19 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         }
         stack.addView(output)
         setContentView(ScrollView(this).apply { addView(stack) })
+    }
+
+    private fun addLabTrial(trial: LabTrial) {
+        if (labTrials.size >= 100) labTrials.removeAt(0)
+        labTrials.add(trial)
+    }
+
+    private fun recordLabTrial(trial: LabTrial) {
+        addLabTrial(trial)
+        val result = if (trial.secondTaAccepted) "im Modell akzeptiert" else "im Modell abgewiesen"
+        status("EAC2-Fehler: ${trial.fault.displayName}; " +
+            "zweite TA $result; Modell: ${trial.chipPolicy.name}. " +
+            "Keine APDU, keine reale TA-Signatur.")
     }
 
     private fun action(label: String, onClick: (View) -> Unit) =
@@ -450,6 +507,9 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         continueButton.visibility = View.GONE
         resultButton.isEnabled = resultUrl != null
         observeButton.isEnabled = !authenticating
+        labFaultSelection.isEnabled = !authenticating
+        labSingleButton.isEnabled = !authenticating
+        labMatrixButton.isEnabled = !authenticating
         observeButton.text = if (observing) "Passive NFC-Beobachtung beenden"
             else "NFC passiv beobachten"
     }
