@@ -21,7 +21,7 @@ data class SameKeyTaAssessment(
     val verdict: SameKeyTaVerdict,
     val reason: String,
     val runId: String?,
-    val evidenceSource: String = "EXTERNAL_AUTHORIZED_LAB",
+    val evidenceSource: String = "USER_SUPPLIED_UNVERIFIED_CLAIMS",
     val liveInjectionImplemented: Boolean = false,
     val rawApduVerifiedByApp: Boolean = false,
     val cryptographicProofVerifiedByApp: Boolean = false
