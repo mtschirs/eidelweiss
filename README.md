@@ -59,6 +59,23 @@ The GitHub Actions workflow builds and tests the app and uploads a debug APK art
 
 Both modes always set `developerMode=false`; no configurable eID server, insecure TLS mode, or live repeat-TA mechanism is offered. The SDK is the only component that communicates with the chip during live authentication.
 
+## One real-evidence test: same terminal key after EAC2 response error
+
+The Android screen now provides a **single narrowly defined evidence-validation flow**:
+"**Gleicher Terminalschlüssel: Evidenzdatei prüfen**". The test point is fixed to
+`EAC2_RESULT_ERROR_AFTER_ACCEPTED_FIRST_TA`. The device opens a JSON file
+provided by an independently authorized Test-PKI card/server instrument and checks
+whether the reported observations support a second TA with the **same** public
+terminal key inside the **same** secure-messaging card session.
+
+See [the detailed test procedure](docs/SAME_KEY_TA_TEST.md) and
+[the fail-closed evidence template](docs/same_key_ta.template.json).
+The app does **not** inject EAC2 errors into the public Governikus test service,
+generate TA signatures or force the official AusweisApp SDK to retain a card
+session across distinct RUN_AUTH calls. An imported claim is **not** cryptographic
+proof without independent verification. JSON reports use schema version **5** and
+include `same_key_ta_assessments` with `cryptographic_proof_verified_by_app=false`.
+
 ## EAC2 fault laboratory (offline)
 
 The **Labor: Fehler injizieren und zweite TA simulieren** button runs a selected fault in a synthetic EAC2 flow. The separate matrix button runs all scenarios:
@@ -76,7 +93,7 @@ The matrix also includes a permissive **hypothesis-only** policy for the distinc
 
 Each trace records the modeled server-transaction ordinal, chip-session ordinal, secure-messaging state, TA count, failure point and whether the second TA was accepted **by the model**. A second server transaction does not reset the simulated chip session. If the model restores a PACE context after CA, it deliberately preserves the TA history. All reports explicitly mark `real_card_evidence=false` and `real_server_evidence=false`.
 
-These test cases do **not** issue APDUs, forge or acquire TA signatures, bypass consent, or alter the official SDK. The exported JSON schema is version 4. The SDK evidence stream is separate from synthetic laboratory results. For actual chip evidence, a separately authorized eID laboratory and instrumented test reader are required.
+These test cases do **not** issue APDUs, forge or acquire TA signatures, bypass consent, or alter the official SDK. The exported JSON schema is version 5. The SDK evidence stream is separate from synthetic laboratory results. For actual chip evidence, a separately authorized eID laboratory and instrumented test reader are required.
 
 ## Reale Beobachtungen und belastbare Nachweise
 

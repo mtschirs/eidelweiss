@@ -26,6 +26,7 @@ import android.widget.ArrayAdapter
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
+import java.io.InputStreamReader
 
 /**
  * Research companion for a NORMAL Governikus self-disclosure.
@@ -49,6 +50,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     private lateinit var labSingleButton: Button
     private lateinit var labMatrixButton: Button
     private lateinit var labTraceButton: Button
+    private lateinit var sameKeyTaImportButton: Button
     private var resumed = false
     @Volatile private var observing = false
     @Volatile private var authenticating = false
@@ -64,6 +66,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     private var resultUrl: String? = null
     private val sdkEvidence = SdkEvidenceRecorder()
     private var scenarios = emptyList<ScenarioReport>()
+    private val sameKeyAssessments = mutableListOf<SameKeyTaAssessment>()
     private val labTrials = mutableListOf<LabTrial>()
     private val observations = mutableListOf<String>()
     private val authHistory = mutableListOf<AuthRunSummary>()
@@ -247,10 +250,25 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         labTraceButton = action("Labor: letzte TA-Ablaufspur ansehen") {
             if (!authenticating) showLastLabTrace()
         }.also(stack::addView)
+        stack.addView(TextView(this).apply {
+            text = "Einzeltest: gleiche TA nach EAC2-Fehler"
+            textSize = 17f
+            setPadding(0, 24, 0, 10)
+        })
+        stack.addView(TextView(this).apply {
+            text = "Fehlerpunkt: EAC2-Ergebnisfehler nach erfolgreicher erster TA. " +
+                "Der unveränderte SDK-Modus kann diesen Fehler nicht injizieren. " +
+                "Hier wird nur eine externe, autorisierte Test-PKI-Kartenmessung geprüft."
+            textSize = 13f
+            setPadding(0, 0, 0, 12)
+        })
+        sameKeyTaImportButton = action("Gleicher Terminalschlüssel: Evidenzdatei prüfen") {
+            if (!authenticating) openSameKeyEvidenceDocument()
+        }.also(stack::addView)
         stack.addView(action("Datensparsamen JSON-Bericht teilen") {
             val json = DiagnosticReport.toJson(
                 scenarios, observations.toList(), authHistory.toList(), labTrials.toList(),
-                sdkEvidence.snapshot()
+                sdkEvidence.snapshot(), sameKeyAssessments.toList()
             )
             startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
                 type = "application/json"
@@ -264,6 +282,55 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         }
         stack.addView(output)
         setContentView(ScrollView(this).apply { addView(stack) })
+    }
+
+    private fun openSameKeyEvidenceDocument() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/json"
+        }
+        startActivityForResult(intent, 0x5A21)
+    }
+
+    @Deprecated("Uses the platform document picker without an additional Activity dependency")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != 0x5A21 || resultCode != RESULT_OK) return
+        if (authenticating) return
+        val uri = data?.data ?: return
+        val assessment = try {
+            val raw = contentResolver.openInputStream(uri)?.use { input ->
+                InputStreamReader(input, Charsets.UTF_8).use { reader ->
+                    // Strict size cap; no raw evidence bytes or imported URI are retained.
+                    val buffer = CharArray(65537)
+                    var read = 0
+                    while (read < buffer.size) {
+                        val amount = reader.read(buffer, read, buffer.size - read)
+                        if (amount < 0) break
+                        read += amount
+                    }
+                    String(buffer, 0, read)
+                }
+            } ?: throw IllegalArgumentException("Datei konnte nicht gelesen werden")
+            SameKeyTaTest.evaluate(raw)
+        } catch (_: Exception) {
+            SameKeyTaAssessment(
+                SameKeyTaVerdict.INVALID_EVIDENCE,
+                "Die ausgewählte JSON-Evidenzdatei ist nicht lesbar.",
+                null
+            )
+        }
+        if (sameKeyAssessments.size >= 20) sameKeyAssessments.removeAt(0)
+        sameKeyAssessments.add(assessment)
+        status("Gleicher TA-Schlüssel: " + assessment.verdict.name)
+        AlertDialog.Builder(this)
+            .setTitle("TA-Einzeltest: Evidenzbewertung")
+            .setMessage(assessment.reason + "\n\n" +
+                "Evidenzquelle: " + assessment.evidenceSource + "\n" +
+                "Keine APDU-Verifikation oder TA-Fehlerinjektion durch Eidelweiss. " +
+                "Jede positive Aussage erfordert unabhängige Laborprüfung.")
+            .setPositiveButton("Schließen", null)
+            .show()
     }
 
     private fun addLabTrial(trial: LabTrial) {
@@ -601,6 +668,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         labSingleButton.isEnabled = !authenticating
         labMatrixButton.isEnabled = !authenticating
         labTraceButton.isEnabled = !authenticating && labTrials.isNotEmpty()
+        sameKeyTaImportButton.isEnabled = !authenticating
         observeButton.text = if (observing) "Passive NFC-Beobachtung beenden"
             else "NFC passiv beobachten"
     }

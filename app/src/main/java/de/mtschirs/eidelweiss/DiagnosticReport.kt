@@ -14,7 +14,8 @@ object DiagnosticReport {
         nfcObservations: List<String>,
         authRuns: List<AuthRunSummary> = emptyList(),
         labRuns: List<LabTrial> = emptyList(),
-        sdkRuns: List<SdkEvidenceRun> = emptyList()
+        sdkRuns: List<SdkEvidenceRun> = emptyList(),
+        sameKeyAssessments: List<SameKeyTaAssessment> = emptyList()
     ): String {
         val cases = JSONArray()
         scenarios.forEach { scenario ->
@@ -94,8 +95,21 @@ object DiagnosticReport {
                 .put("proves_terminal_authentication", false)
                 .put("marks", marks))
         }
+        val sameKey = JSONArray()
+        sameKeyAssessments.forEach { assessment ->
+            sameKey.put(JSONObject()
+                .put("test_case", SameKeyTaTest.FAULT_POINT)
+                .put("environment", SameKeyTaTest.TEST_ENVIRONMENT)
+                .put("run_id", assessment.runId ?: JSONObject.NULL)
+                .put("verdict", assessment.verdict.name)
+                .put("reason", assessment.reason)
+                .put("evidence_source", assessment.evidenceSource)
+                .put("live_injection_implemented", assessment.liveInjectionImplemented)
+                .put("raw_apdu_verified_by_app", assessment.rawApduVerifiedByApp)
+                .put("cryptographic_proof_verified_by_app", assessment.cryptographicProofVerifiedByApp))
+        }
         return JSONObject()
-            .put("schema_version", 4)
+            .put("schema_version", 5)
             .put("generated_at_utc", Instant.now().toString())
             .put("scope", "OFFLINE_SYNTHETIC_FAULT_LAB_PASSIVE_NFC_AND_STANDARD_AUSWEISAPP_SDK_SELF_AUTH")
             .put("real_npa_security_conclusion", "NOT_ESTABLISHED")
@@ -104,6 +118,7 @@ object DiagnosticReport {
             .put("cases", cases)
             .put("eac2_fault_lab_trials", lab)
             .put("sdk_observation_runs", sdkEvidence)
+            .put("same_key_ta_assessments", sameKey)
             .toString(2)
     }
 }

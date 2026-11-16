@@ -14,7 +14,7 @@ class DiagnosticReportTest {
                 labRuns = listOf(run)
             )
         )
-        assertEquals(4, json.getInt("schema_version"))
+        assertEquals(5, json.getInt("schema_version"))
         assertEquals("NOT_ESTABLISHED", json.getString("real_npa_security_conclusion"))
         val lab = json.getJSONArray("eac2_fault_lab_trials").getJSONObject(0)
         assertEquals("PURE_OFFLINE_SYNTHETIC", lab.getString("execution_mode"))

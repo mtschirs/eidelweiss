@@ -40,7 +40,7 @@ class SdkEvidenceRecorderTest {
         val report = JSONObject(DiagnosticReport.toJson(
             emptyList(), emptyList(), sdkRuns = log.snapshot()
         ))
-        assertEquals(4, report.getInt("schema_version"))
+        assertEquals(5, report.getInt("schema_version"))
         val run = report.getJSONArray("sdk_observation_runs").getJSONObject(0)
         assertFalse(run.getBoolean("contains_apdu_trace"))
         assertFalse(run.getBoolean("proves_chip_session_continuity"))
