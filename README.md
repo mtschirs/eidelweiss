@@ -48,6 +48,22 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 The GitHub Actions workflow builds and tests the app and uploads a debug APK artifact. An APK build validates compilation only; the real eID flow additionally requires an NFC device, enabled online-ID function, and a current Governikus service.
 
+## NFC/PIN handoff: diagnosed and corrected
+
+The app forwards the NFC `Tag` to `IAusweisApp2Sdk.updateNfcTag()` directly
+from the Android NFC ReaderCallback rather than scheduling this AIDL operation on
+the UI thread. A positive AIDL response means only that the native SDK accepted
+the handoff, **not** that the AusweisApp engine has recognized an eID card.
+
+After each accepted NFC dispatch, Eidelweiss requests `GET_READER_LIST` and
+records only non-identifying reader classifications: NFC reader missing, detached,
+no card, unknown card, or recognized card. If the SDK does not request PIN,
+CAN or PUK within eight seconds, a separate diagnostic event is emitted.
+
+See [NFC/PIN diagnostic procedure](docs/NFC_PIN_DIAGNOSIS.md) and compare
+`SDK_NFC_READER_CARD_RECOGNIZED` with `SDK_ENTER_PIN` in the JSON report.
+No PIN/CAN/PUK values, raw APDUs, NFC UIDs or reader serial numbers are recorded.
+
 ## Normal self-disclosure walkthrough
 
 1. Open Eidelweiss and ensure **AusweisApp-SDK bereit** is displayed.
