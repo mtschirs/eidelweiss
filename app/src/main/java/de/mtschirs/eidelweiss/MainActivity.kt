@@ -270,7 +270,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
             }
             "STATUS" -> status("SDK-Status wurde aktualisiert.")
             "BAD_STATE" -> status("SDK hat einen Befehl im aktuellen Zustand abgewiesen.")
-            "READER_LIST", "READER", "INFO", "INSERT_CARD", "API_LEVEL" -> Unit
+            "READER_LIST", "READER", "INFO" -> Unit
             else -> Unit // Do not export unknown or sensitive SDK message bodies.
         }
     }

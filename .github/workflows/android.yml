@@ -19,7 +19,12 @@ jobs:
       # GitHub's Ubuntu runner already provides Android cmdline-tools.
       # Avoid android-actions/setup-android@v3 which requests a retired "tools" package.
       - name: Install Android API 36
-        run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
+        run: |
+          set -e
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -name sdkmanager -type f | sort -V | tail -1)"
+          test -n "$SDKMANAGER"
+          "$SDKMANAGER" --sdk_root="$SDK_ROOT" --install "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
