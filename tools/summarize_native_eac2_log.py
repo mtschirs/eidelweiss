@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 
 MARKER = "EIDELWEISS_EAC2_LAB"
-EVENT_RE = re.compile(r"(?:^|\\s)phase=([a-z_]+)")
+EVENT_RE = re.compile(r"(?:^|\s)phase=([a-z_]+)")
 KEYS = frozenset({
     "ta_first", "post_ta", "eac2_command", "eac2_paos_response",
     "post_eac2_server_message", "post_eac2_transmit_received",
