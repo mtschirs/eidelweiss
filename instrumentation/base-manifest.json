@@ -1,0 +1,19 @@
+{
+  "base_repository": "mtschirs/eidolon",
+  "base_subdir": "AusweisApp",
+  "base_branch": "master",
+  "git_blob_shas": {
+    "src/card/base/CardConnection.h": "74055ee40276b46e16ae781fdafc26612964314c",
+    "src/card/base/CardConnection.cpp": "60ffda08e172944ab7a28379e04dfa0f26c0cfa6",
+    "src/card/base/command/DidAuthenticateEAC2Command.h": "7c0147d9ab6cb8fa9ec60c8c4aa841635742f9ae",
+    "src/card/base/command/DidAuthenticateEAC2Command.cpp": "db351c5dfe4e614705fda6fd68bdb485e0f2386b",
+    "src/workflows/base/states/StateDidAuthenticateEac2.cpp": "82c1485a5e1fbb3704c20e95701784f6d32ed36d",
+    "src/workflows/base/states/StateGenericSendReceive.cpp": "f478f16be545d8bf7ee3e3a3d80c36b58aa81f0f",
+    "src/workflows/base/states/StateTransmit.cpp": "5ea4d3f308a79d70a17f5108a92fddf5dc9dbc7d",
+    "src/workflows/base/states/StateDestroyPace.cpp": "7c641705606420b9fcb3976346d289339bf595bd",
+    "src/card/base/CardConnectionWorker.cpp": "32903834e3557409274800ff143ff24607926439"
+  },
+  "compile_define": "EIDELWEISS_EAC2_LAB",
+  "test_endpoint": "https://test.governikus-eid.de/AusweisAuskunft/WebServiceRequesterServlet?mode=json",
+  "safety_note": "One-shot post-successful-TA error injection only in Android instrumented Test-PKI service. No second TA signature generation or session splicing."
+}

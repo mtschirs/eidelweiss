@@ -1,0 +1,134 @@
+/**
+ * Copyright (c) 2014-2026 Governikus GmbH & Co. KG, Germany
+ */
+
+#include "CardConnection.h"
+#include "CardConnectionWorker.h"
+
+
+using namespace governikus;
+
+
+Q_DECLARE_LOGGING_CATEGORY(card)
+
+
+const QLoggingCategory& CardConnection::getLoggingCategory()
+{
+	return card();
+}
+
+
+CardConnection::CardConnection(const QSharedPointer<CardConnectionWorker>& pCardConnectionWorker)
+	: QObject()
+	, mCardConnectionWorker(pCardConnectionWorker)
+	, mReaderInfo()
+	, mPaceCanSuccessful(false)
+	, mPacePinSuccessful(false)
+{
+	Q_ASSERT(mCardConnectionWorker);
+	QMetaObject::invokeMethod(mCardConnectionWorker.data(), &CardConnectionWorker::getReaderInfo, Qt::BlockingQueuedConnection, &mReaderInfo);
+	connect(mCardConnectionWorker.data(), &CardConnectionWorker::fireReaderInfoChanged, this, &CardConnection::onReaderInfoChanged);
+}
+
+
+CardConnection::CardConnection()
+	: QObject()
+	, mCardConnectionWorker()
+	, mReaderInfo()
+	, mPaceCanSuccessful(false)
+	, mPacePinSuccessful(false)
+{
+}
+
+
+const ReaderInfo& CardConnection::getReaderInfo()
+{
+	return mReaderInfo;
+}
+
+
+bool CardConnection::getPaceCanSuccessful() const
+{
+	return mPaceCanSuccessful;
+}
+
+
+bool CardConnection::getPacePinSuccessful() const
+{
+	return mPacePinSuccessful;
+}
+
+
+void CardConnection::setProgressMessage(const QString& pMessage, int pProgress)
+{
+	QMetaObject::invokeMethod(mCardConnectionWorker.data(), [worker = mCardConnectionWorker, pMessage, pProgress] {
+				worker->setProgressMessage(pMessage, pProgress);
+			});
+}
+
+
+void CardConnection::setErrorMessage(const QString& pMessage)
+{
+	QMetaObject::invokeMethod(mCardConnectionWorker.data(), [worker = mCardConnectionWorker, pMessage] {
+				worker->setErrorMessage(pMessage);
+			});
+}
+
+
+UpdateRetryCounterCommand* CardConnection::createUpdateRetryCounterCommand(const QString& pSlotHandle)
+{
+	return new UpdateRetryCounterCommand(mCardConnectionWorker, pSlotHandle);
+}
+
+
+ResetRetryCounterCommand* CardConnection::createResetRetryCounterCommand()
+{
+	return new ResetRetryCounterCommand(mCardConnectionWorker);
+}
+
+
+EstablishPaceChannelCommand* CardConnection::createEstablishPaceChannelCommand(PacePasswordId pPacePasswordId, const QByteArray& pPacePassword, const QByteArray& pEffectiveChat, const QByteArray& pCertificateDescription)
+{
+	return new EstablishPaceChannelCommand(mCardConnectionWorker, pPacePasswordId, pPacePassword, pEffectiveChat, pCertificateDescription);
+}
+
+
+SetEidPinCommand* CardConnection::createSetEidPinCommand(const QByteArray& pNewPin, quint8 pTimeoutSeconds)
+{
+	return new SetEidPinCommand(mCardConnectionWorker, pNewPin, pTimeoutSeconds);
+}
+
+
+DestroyPaceChannelCommand* CardConnection::createDestroyPaceChannelCommand(const QString& pSlotHandle)
+{
+	return new DestroyPaceChannelCommand(mCardConnectionWorker, pSlotHandle);
+}
+
+
+DidAuthenticateEAC1Command* CardConnection::createDidAuthenticateEAC1Command()
+{
+	return new DidAuthenticateEAC1Command(mCardConnectionWorker);
+}
+
+
+DidAuthenticateEAC2Command* CardConnection::createDidAuthenticateEAC2Command(
+		const CVCertificateChain& pCvcChain, const QByteArray& pEphemeralPublicKeyAsHex,
+		const QByteArray& pSignatureAsHex, const QByteArray& pAuthenticatedAuxiliaryDataAsBinary,
+		const QByteArray& pPin, bool pEidelweissPostTaError)
+{
+	return new DidAuthenticateEAC2Command(mCardConnectionWorker, pCvcChain,
+			pEphemeralPublicKeyAsHex, pSignatureAsHex, pAuthenticatedAuxiliaryDataAsBinary, pPin, pEidelweissPostTaError);
+}
+
+
+void CardConnection::onReaderInfoChanged(const ReaderInfo& pReaderInfo)
+{
+	mReaderInfo = pReaderInfo;
+	Q_EMIT fireReaderInfoChanged(mReaderInfo);
+}
+
+
+TransmitCommand* CardConnection::createTransmitCommand(const QList<InputAPDUInfo>& pInputApduInfos, const QString& pSlotHandle)
+{
+	return new TransmitCommand(mCardConnectionWorker, pInputApduInfos, pSlotHandle);
+}
