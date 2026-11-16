@@ -71,7 +71,11 @@ object CardAccessApdu {
         if (selectStatus != "9000") return NfcPreflightResult(
             NfcPreflightOutcome.CARD_ACCESS_SELECT_REJECTED, selectStatus = selectStatus
         )
-        val readStatus = readResponse?.let(::statusWord)
+        val read = readResponse ?: return NfcPreflightResult(
+            NfcPreflightOutcome.CARD_ACCESS_RESPONSE_MALFORMED,
+            selectStatus = selectStatus
+        )
+        val readStatus = statusWord(read)
         if (readStatus == null) return NfcPreflightResult(
             NfcPreflightOutcome.CARD_ACCESS_RESPONSE_MALFORMED,
             selectStatus = selectStatus
@@ -81,7 +85,7 @@ object CardAccessApdu {
             selectStatus = selectStatus, readStatus = readStatus
         )
         // EF.CardAccess contains DER-encoded SET OF SecurityInfo (tag 31).
-        val startsWithSet = readResponse.size >= 3 && (readResponse[0].toInt() and 0xFF) == 0x31
+        val startsWithSet = read.size >= 3 && (read[0].toInt() and 0xFF) == 0x31
         return NfcPreflightResult(
             if (startsWithSet) NfcPreflightOutcome.CARD_ACCESS_OK
             else NfcPreflightOutcome.CARD_ACCESS_RESPONSE_MALFORMED,
@@ -95,17 +99,14 @@ object NfcPreflightProbe {
         val iso = IsoDep.get(tag) ?: return NfcPreflightResult(NfcPreflightOutcome.NON_ISODEP)
         val extended = iso.isExtendedLengthApduSupported
         val maxLength = iso.maxTransceiveLength
-        var stage = "CONNECT"
         try {
             iso.connect()
             iso.timeout = 5000
-            stage = "SELECT"
             val selected = iso.transceive(CardAccessApdu.select())
             if (CardAccessApdu.statusWord(selected) != "9000") {
                 return CardAccessApdu.classify(selected, null)
                     .copy(extendedApdu = extended, maxTransceiveLength = maxLength)
             }
-            stage = "READ"
             val read = iso.transceive(CardAccessApdu.readOneByte())
             return CardAccessApdu.classify(selected, read)
                 .copy(extendedApdu = extended, maxTransceiveLength = maxLength)
