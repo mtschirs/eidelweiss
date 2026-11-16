@@ -28,7 +28,7 @@ Passive NFC (no APDUs) ----> DiagnosticReport JSON
 Normal SDK AUTH (redacted) -> DiagnosticReport JSON
 ```
 
-The embedded SDK uses a bound Android service and the official AIDL interface. We do **not** copy or modify the AusweisApp EAC implementation. Unlike `eidolon`, Eidelweiss does not relay real-card APDUs to another host or emulate a card.
+The embedded SDK uses a bound Android service and the official AIDL interface. The **default build** leaves the AusweisApp EAC implementation unmodified; an **opt-in native laboratory build** compiles the C++ overrides under `instrumentation/ausweisapp-overrides`. Unlike `eidolon`, Eidelweiss does not relay real-card APDUs to another host or emulate a card.
 
 Source references:
 - [Governikus Android SDK AIDL](https://www.ausweisapp.bund.de/sdk/android.html)
@@ -38,7 +38,7 @@ Source references:
 
 ## Build
 
-Requires Java 17, Gradle 8.13, Android SDK 36; an NFC-capable Android device supporting extended-length ISO-DEP communication (API 28+). Android Studio can import the project. The Gradle dependency downloads the official 2.6.2 AAR from Maven Central; **no local AusweisApp recompilation is required**.
+Requires Java 17, Gradle 8.13, Android SDK 36; an NFC-capable Android device supporting extended-length ISO-DEP communication (API 28+). Android Studio can import the project. The default Gradle dependency downloads the official 2.6.2 AAR from Maven Central; **no local AusweisApp recompilation is required for standard self-disclosure**. The native EAC2 fault mode instead requires a separate, locally compiled and explicitly selected instrumented AAR.
 
 ```sh
 gradle testDebugUnitTest

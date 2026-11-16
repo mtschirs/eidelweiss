@@ -151,9 +151,12 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
             gravity = Gravity.CENTER_HORIZONTAL
         })
         stack.addView(TextView(this).apply {
-            text = "Reguläre AusweisApp-Selbstauskunft mit unverändertem SDK. " +
-                "NFC, EAC und Netzwerkverbindung übernimmt Governikus. " +
-                "Offline-Fehlermodelle bleiben davon getrennt."
+            text = if (BuildConfig.EIDELWEISS_LAB_AAR)
+                "AusweisApp-SDK mit nativer EAC2-Testinstrumentierung. " +
+                    "Nur Test-PKI; normale Selbstauskunft bleibt ohne aktivierten Fehler möglich."
+            else
+                "Reguläre AusweisApp-Selbstauskunft mit unverändertem SDK. " +
+                    "NFC, EAC und Netzwerkverbindung übernimmt Governikus."
             setPadding(0, 20, 0, 24)
             textSize = 14f
         })
@@ -792,7 +795,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
                 } else if (sdkBridge.forwardTag(tag)) {
                     sdkEvidence.mark(SdkEvidenceEvent.NFC_TAG_DISPATCHED, SdkEvidenceSource.APP_DISPATCH)
                     nfcForwarded = true
-                    status("ISO-DEP-Tag an unveränderte AusweisApp-SDK-Engine übergeben.")
+                    status("ISO-DEP-Tag an AusweisApp-SDK-Engine übergeben.")
                 } else {
                     status("NFC-Tag konnte nicht an AusweisApp-SDK übergeben werden.")
                 }

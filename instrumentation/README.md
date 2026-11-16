@@ -22,7 +22,7 @@ Das Skript verweigert Änderungen, wenn die Originaldateien nicht zur gespeicher
 
 ## Instrumentiertes Android-SDK erstellen
 
-Ein Android-Qt-6-Build mit der für die vendorte AusweisApp benötigten Android SDK/NDK- und Qt-Umgebung ist erforderlich. Die projektinternen CMake-Presets enthalten `ci-android-aar-review` (`INTEGRATED_SDK=ON`). In diesem lokalen **Labor-Build** die Zusatzdefinition aktivieren:
+Ein Android-Qt-Build mit mindestens **Qt 6.10** (gemäß den vendorten AusweisApp-CMake-Abhängigkeiten), passenden Host-Qt-Komponenten, `QT_HOST_PATH`, Android SDK/NDK sowie OpenSSL und llhttp für die Zielarchitektur ist erforderlich. Die projektinternen CMake-Presets enthalten `ci-android-aar-review` (`INTEGRATED_SDK=ON`). In diesem lokalen **Labor-Build** die Zusatzdefinition aktivieren:
 
 ```sh
 cd eidolon/AusweisApp
