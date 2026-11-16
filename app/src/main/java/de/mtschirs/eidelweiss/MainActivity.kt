@@ -26,6 +26,7 @@ import android.widget.ArrayAdapter
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
+import java.io.File
 import java.io.InputStreamReader
 
 /**
@@ -51,6 +52,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     private lateinit var labMatrixButton: Button
     private lateinit var labTraceButton: Button
     private lateinit var sameKeyTaImportButton: Button
+    private lateinit var eac2NativeFaultButton: Button
     private lateinit var sameKeyBaselineButton: Button
     private var resumed = false
     @Volatile private var observing = false
@@ -64,6 +66,10 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     private var rightsShown = false
     private var nfcForwarded = false
     private var startedAtUtc = ""
+    private val eac2FaultFlag: File by lazy {
+        File(filesDir, "eidelweiss_eac2_post_ta_once")
+    }
+    private var nativeFaultArmedForRun = false
     private var resultUrl: String? = null
     private val sdkEvidence = SdkEvidenceRecorder()
     private var scenarios = emptyList<ScenarioReport>()
@@ -76,6 +82,9 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         adapter = NfcAdapter.getDefaultAdapter(this)
+        // A killed process may leave an unused one-shot marker. Never carry it
+        // into a later authentication automatically.
+        eac2FaultFlag.delete()
         sdkBridge = AusweisAppSdkBridge(this, object : AusweisAppSdkBridge.Listener {
             override fun onSdkSessionEstablished() {
                 status("AusweisApp-SDK verbunden; API-Level wird abgefragt.")
@@ -252,6 +261,25 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
             if (!authenticating) showLastLabTrace()
         }.also(stack::addView)
         stack.addView(TextView(this).apply {
+            text = "Native EAC2-Fehlerinjektion (Test-PKI)"
+            textSize = 17f
+            setPadding(0, 24, 0, 10)
+        })
+        eac2NativeFaultButton = action("Echte TA, danach EAC2-Fehler (einmal)") {
+            startOneShotPostTaError()
+        }.also(stack::addView)
+        stack.addView(TextView(this).apply {
+            text = if (BuildConfig.EIDELWEISS_LAB_AAR)
+                "Instrumentiertes SDK aktiv. Nur Test-PKI; erste TA wird auf " +
+                    "dem Chip ausgeführt, danach folgt ein lokaler EAC2-Fehler vor CA. " +
+                    "Dies erzeugt noch keine zweite TA."
+            else
+                "Offizielles SDK aktiv: Native Fehlerfunktion nicht verfügbar. " +
+                    "Für diesen Test muss die gepatchte AAR explizit eingebunden sein."
+            textSize = 13f
+            setPadding(0, 0, 0, 18)
+        })
+        stack.addView(TextView(this).apply {
             text = "Einzeltest: gleiche TA nach EAC2-Fehler"
             textSize = 17f
             setPadding(0, 24, 0, 10)
@@ -296,6 +324,45 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         }
         stack.addView(output)
         setContentView(ScrollView(this).apply { addView(stack) })
+    }
+
+    private fun startOneShotPostTaError() {
+        if (!BuildConfig.EIDELWEISS_LAB_AAR || !sdkReady || authenticating) return
+        if (adapter?.isEnabled != true) {
+            status("NFC muss für den Hardware-Test eingeschaltet sein.")
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Echter EAC2-Testfehler – Testausweis")
+            .setMessage(
+                "Nur mit dem eigenen Testausweis und der offiziellen Test-PKI. " +
+                "Die instrumentierte native Engine führt die erste Terminal " +
+                "Authentication auf dem Chip aus und injiziert bei Erfolg " +
+                "einmalig einen lokalen EAC2-Fehler VOR Chip Authentication. " +
+                "Es erfolgt keine automatische zweite TA und kein erneuter PACE-Lauf. " +
+                "Dieser Vorgang ist keine normale Selbstauskunft."
+            )
+            .setNegativeButton("Abbrechen", null)
+            .setPositiveButton("Einmalig ausführen") { _, _ ->
+                if (!sdkReady || authenticating) return@setPositiveButton
+                selfAuthEnvironmentSelection.setSelection(SelfAuthEnvironment.TEST_PKI.ordinal)
+                try {
+                    // Shared app-private filesDir is readable from the SDK's
+                    // separate :ausweisapp2_service Android process.
+                    eac2FaultFlag.writeText("armed once\n", Charsets.UTF_8)
+                    nativeFaultArmedForRun = true
+                    startNormalSelfDisclosure()
+                    if (!authenticating) {
+                        nativeFaultArmedForRun = false
+                        eac2FaultFlag.delete()
+                    }
+                } catch (_: Exception) {
+                    nativeFaultArmedForRun = false
+                    eac2FaultFlag.delete()
+                    status("Testfehler konnte nicht aktiviert werden.")
+                }
+            }
+            .show()
     }
 
     private fun openSameKeyEvidenceDocument() {
@@ -405,6 +472,9 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
             SelfAuthEnvironment.entries[selfAuthEnvironmentSelection.selectedItemPosition]
         authenticating = true
         val correlationId = sdkEvidence.begin(activeSelfAuthEnvironment)
+        if (nativeFaultArmedForRun) {
+            sdkEvidence.mark(SdkEvidenceEvent.EAC2_NATIVE_FAULT_ARMED, SdkEvidenceSource.UI_ACTION)
+        }
         startedAtUtc = Instant.now().toString()
         status("Evidenzkennung: $correlationId")
         certificateShown = false
@@ -619,6 +689,8 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     }
 
     private fun finishAuthentication(message: JSONObject) {
+        eac2FaultFlag.delete()
+        nativeFaultArmedForRun = false
         sdkEvidence.mark(
             if (SelfAuthProtocol.safeOutcome(message) == "ok") SdkEvidenceEvent.AUTH_FINAL_OK
             else SdkEvidenceEvent.AUTH_FINAL_ERROR,
@@ -643,6 +715,8 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     }
 
     private fun finishLocally(reason: String) {
+        eac2FaultFlag.delete()
+        nativeFaultArmedForRun = false
         sdkEvidence.mark(SdkEvidenceEvent.LOCAL_ABORT, SdkEvidenceSource.APP_DISPATCH)
         sdkEvidence.end()
         closeDialog()
@@ -684,6 +758,8 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         labTraceButton.isEnabled = !authenticating && labTrials.isNotEmpty()
         sameKeyTaImportButton.isEnabled = !authenticating
         sameKeyBaselineButton.isEnabled = sdkReady && !authenticating
+        eac2NativeFaultButton.isEnabled = BuildConfig.EIDELWEISS_LAB_AAR &&
+            sdkReady && !authenticating
         observeButton.text = if (observing) "Passive NFC-Beobachtung beenden"
             else "NFC passiv beobachten"
     }
