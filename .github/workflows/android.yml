@@ -16,12 +16,13 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
-      - name: Install Android SDK 35
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      # GitHub's Ubuntu runner already provides Android cmdline-tools.
+      # Avoid android-actions/setup-android@v3 which requests a retired "tools" package.
+      - name: Install Android API 36
+        run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '8.13'
       - name: Unit tests
         run: gradle --no-daemon testDebugUnitTest
       - name: Build APK
