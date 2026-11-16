@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.text.InputFilter
 import android.text.InputType
 import android.view.Gravity
@@ -54,7 +55,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     private lateinit var sameKeyTaImportButton: Button
     private lateinit var eac2NativeFaultButton: Button
     private lateinit var sameKeyBaselineButton: Button
-    private var resumed = false
+    @Volatile private var resumed = false
     @Volatile private var observing = false
     @Volatile private var authenticating = false
     private var sdkReady = false
@@ -70,6 +71,9 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         File(filesDir, "eidelweiss_eac2_post_ta_once")
     }
     private var nativeFaultArmedForRun = false
+    private var sdkNfcReaderState: NfcReaderState? = null
+    private var lastReaderQueryAtMs = 0L
+    private var runGeneration = 0
     private var resultUrl: String? = null
     private val sdkEvidence = SdkEvidenceRecorder()
     private var scenarios = emptyList<ScenarioReport>()
@@ -474,6 +478,9 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         activeSelfAuthEnvironment =
             SelfAuthEnvironment.entries[selfAuthEnvironmentSelection.selectedItemPosition]
         authenticating = true
+        runGeneration++
+        lastReaderQueryAtMs = 0
+        sdkNfcReaderState = null
         val correlationId = sdkEvidence.begin(activeSelfAuthEnvironment)
         if (nativeFaultArmedForRun) {
             sdkEvidence.mark(SdkEvidenceEvent.EAC2_NATIVE_FAULT_ARMED, SdkEvidenceSource.UI_ACTION)
@@ -488,8 +495,12 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         syncNfc()
         updateButtons()
-        status("Reguläre Selbstauskunft: ${activeSelfAuthEnvironment.displayName}. " +
-            "Unverändertes SDK, developerMode=false, keine Fehlerinjektion.")
+        status("Selbstauskunft: ${activeSelfAuthEnvironment.displayName}. " +
+            (if (BuildConfig.EIDELWEISS_LAB_AAR)
+                "Instrumentierte SDK-AAR" else "Unveränderte SDK-AAR") +
+            ", developerMode=false. " +
+            (if (nativeFaultArmedForRun) "EAC2-Testfehler einmalig aktiviert."
+             else "Keine Fehlerinjektion aktiviert."))
         if (!sdkBridge.send(SelfAuthProtocol.startCommand(activeSelfAuthEnvironment))) {
             finishLocally("sdk_not_connected")
         }
@@ -538,7 +549,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
             "CERTIFICATE" -> {
                 if (authenticating && rights != null) showCertificateAndRights(data)
             }
-            "INSERT_CARD" -> status("Bitte Ausweis am NFC-Leser halten.")
+            "INSERT_CARD" -> status("SDK wartet auf Ausweis. Bitte stabil an NFC-Antenne halten.")
             "ENTER_PIN" -> if (authenticating) promptForSecret("PIN", "SET_PIN", 6, data)
             "ENTER_CAN" -> if (authenticating) promptForSecret("CAN", "SET_CAN", 6, data)
             "ENTER_PUK" -> if (authenticating) promptForSecret("PUK", "SET_PUK", 10, data)
@@ -550,9 +561,21 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
                 continueButton.visibility = View.VISIBLE
                 status("SDK pausiert. Voraussetzung prüfen und dann fortsetzen.")
             }
-            "STATUS" -> status("SDK-Status wurde aktualisiert.")
+            "STATUS" -> if (authenticating) {
+                status("SDK-Status: " + SdkNfcReaderState.safeStatusDescription(data))
+            }
             "BAD_STATE" -> status("SDK hat einen Befehl im aktuellen Zustand abgewiesen.")
-            "READER_LIST", "READER", "INFO" -> Unit
+            "READER_LIST", "READER" -> {
+                if (authenticating) {
+                    val state = SdkNfcReaderState.fromMessage(data)
+                    if (state != null && state != sdkNfcReaderState) {
+                        sdkNfcReaderState = state
+                        sdkEvidence.mark(state.evidenceEvent, SdkEvidenceSource.SDK_CALLBACK)
+                        status("NFC-Erkennung der SDK-Engine: " + state.description)
+                    }
+                }
+            }
+            "INFO" -> Unit
             else -> Unit // Do not export unknown or sensitive SDK message bodies.
         }
     }
@@ -767,6 +790,24 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
             else "NFC passiv beobachten"
     }
 
+    private fun requestNativeReaderStatus() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastReaderQueryAtMs < 2_000L) return
+        lastReaderQueryAtMs = now
+        val generation = runGeneration
+        ui.postDelayed({
+            if (authenticating && runGeneration == generation) {
+                sdkEvidence.mark(
+                    SdkEvidenceEvent.SDK_READER_CHECK_REQUESTED,
+                    SdkEvidenceSource.APP_DISPATCH
+                )
+                if (!sdkBridge.send(SelfAuthProtocol.command("GET_READER_LIST"))) {
+                    status("SDK-Leserliste konnte nicht abgefragt werden.")
+                }
+            }
+        }, 1_200L)
+    }
+
     private fun syncNfc() {
         if (!resumed) return
         val nfc = adapter ?: return
@@ -785,19 +826,39 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     }
 
     override fun onTagDiscovered(tag: Tag) {
+        if (!resumed) return
+
+        // The official AusweisApp SDK forwards the fresh Tag immediately
+        // inside ReaderCallback, not after a UI-thread scheduling delay.
         val iso = IsoDep.get(tag)
         val compatible = iso != null && iso.isExtendedLengthApduSupported
+        val wasAuthenticating = authenticating
+        val forwarded = wasAuthenticating && compatible && sdkBridge.forwardTag(tag)
+
+        // Only user-visible messages and safe event recording use the UI thread.
         ui.post {
             if (!resumed) return@post
-            if (authenticating) {
-                if (!compatible) {
-                    status("Karte/Gerät bietet keine erforderliche ISO-DEP-Extended-Length-Unterstützung.")
-                } else if (sdkBridge.forwardTag(tag)) {
-                    sdkEvidence.mark(SdkEvidenceEvent.NFC_TAG_DISPATCHED, SdkEvidenceSource.APP_DISPATCH)
-                    nfcForwarded = true
-                    status("ISO-DEP-Tag an AusweisApp-SDK-Engine übergeben.")
-                } else {
-                    status("NFC-Tag konnte nicht an AusweisApp-SDK übergeben werden.")
+            if (wasAuthenticating) {
+                if (!authenticating) return@post
+                sdkEvidence.mark(SdkEvidenceEvent.NFC_TAG_DETECTED, SdkEvidenceSource.APP_DISPATCH)
+                when {
+                    !compatible -> status("NFC-Tag erkannt, aber ISO-DEP Extended-Length fehlt.")
+                    forwarded -> {
+                        sdkEvidence.mark(
+                            SdkEvidenceEvent.NFC_TAG_DISPATCHED,
+                            SdkEvidenceSource.APP_DISPATCH
+                        )
+                        nfcForwarded = true
+                        status("NFC-Tag an SDK-AIDL übergeben; Kartenerkennung noch nicht bestätigt.")
+                        requestNativeReaderStatus()
+                    }
+                    else -> {
+                        sdkEvidence.mark(
+                            SdkEvidenceEvent.NFC_TAG_DISPATCH_REJECTED,
+                            SdkEvidenceSource.APP_DISPATCH
+                        )
+                        status("SDK-AIDL hat den NFC-Tag nicht angenommen.")
+                    }
                 }
             } else if (observing) {
                 val msg = if (iso == null) "NFC: kein ISO-DEP"
