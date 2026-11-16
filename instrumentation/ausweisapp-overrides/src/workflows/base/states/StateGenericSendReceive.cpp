@@ -358,6 +358,12 @@ void StateGenericSendReceive::onReplyFinished()
 
 	if (mExpectedResponseType == receivedType)
 	{
+#if defined(EIDELWEISS_EAC2_LAB)
+		if (receivedType == PaosType::TRANSMIT)
+		{
+			qInfo() << "EIDELWEISS_EAC2_LAB phase=post_eac2_transmit_received";
+		}
+#endif
 		setReceivedMessage(paosHandler.getPaosMessage());
 		Q_EMIT fireContinue();
 		return;
