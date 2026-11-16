@@ -57,6 +57,15 @@ Die Logzeile `phase=ta_first result=accepted_by_chip` entsteht unmittelbar **nac
 
 Mit `phase=secure_messaging_stop` und `phase=destroy_pace_requested` lässt sich ein möglicher Sitzungsabbruch erkennen. **Ihre Abwesenheit beweist allerdings keine durchgängige RF-/Karten-Sitzung.** Dafür ist zusätzlich eine unabhängige Reader-Aufzeichnung erforderlich.
 
+### Native Ablaufspur lokal auswerten
+
+```sh
+adb logcat -d -v epoch | grep EIDELWEISS_EAC2_LAB > eac2-native-markers.txt
+python3 tools/summarize_native_eac2_log.py eac2-native-markers.txt > eac2-native-summary.json
+```
+
+Die Auswertung protokolliert den echten **ersten** TA-Erfolg, den injizierten Fehler und gegebenenfalls eine vom Testserver gesendete `Transmit`-Fortsetzung. Sie behauptet **keinen** gültigen zweiten TA-Beweis. Die Originalaufzeichnung gehört in eine zugangsgeschützte Laborablage; der JSON-Report führt nur redigierte Ereignisnamen.
+
 ## Scharfe Grenzen für die Ergebnisbewertung
 
 - Dieser reale Eingriff zeigt, ob die **erste TA trotz anschließendem EAC2-Fehler** bereits erfolgreich war und ob der Testdienst danach ggf. weiter `Transmit` sendet.
