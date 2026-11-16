@@ -60,6 +60,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     private var nfcForwarded = false
     private var startedAtUtc = ""
     private var resultUrl: String? = null
+    private val sdkEvidence = SdkEvidenceRecorder()
     private var scenarios = emptyList<ScenarioReport>()
     private val labTrials = mutableListOf<LabTrial>()
     private val observations = mutableListOf<String>()
@@ -82,12 +83,16 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
             override fun onSdkDisconnected() {
                 sdkReady = false
                 apiLevelRequested = null
-                if (authenticating) finishLocally("sdk_disconnected")
+                if (authenticating) {
+                    sdkEvidence.mark(SdkEvidenceEvent.SDK_DISCONNECTED, SdkEvidenceSource.SDK_CALLBACK)
+                    finishLocally("sdk_disconnected")
+                }
                 status("AusweisApp-SDK-Verbindung beendet.")
                 updateButtons()
             }
 
             override fun onSdkError(message: String) {
+                sdkEvidence.mark(SdkEvidenceEvent.SDK_ERROR, SdkEvidenceSource.SDK_CALLBACK)
                 status(message)
                 updateButtons()
             }
@@ -146,11 +151,13 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
             .also(stack::addView)
         cancelButton = action("Authentisierung abbrechen") {
             if (authenticating) {
+                sdkEvidence.mark(SdkEvidenceEvent.USER_CANCEL_REQUESTED, SdkEvidenceSource.UI_ACTION)
                 sdkBridge.send(SelfAuthProtocol.command("CANCEL"))
                 status("Abbruch an AusweisApp-SDK gesendet.")
             }
         }.also(stack::addView)
         continueButton = action("Nach Pause fortsetzen") {
+            sdkEvidence.mark(SdkEvidenceEvent.USER_CONTINUE_REQUESTED, SdkEvidenceSource.UI_ACTION)
             sdkBridge.send(SelfAuthProtocol.command("CONTINUE"))
             continueButton.visibility = View.GONE
         }.also(stack::addView)
@@ -219,7 +226,8 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         }.also(stack::addView)
         stack.addView(action("Datensparsamen JSON-Bericht teilen") {
             val json = DiagnosticReport.toJson(
-                scenarios, observations.toList(), authHistory.toList(), labTrials.toList()
+                scenarios, observations.toList(), authHistory.toList(), labTrials.toList(),
+                sdkEvidence.snapshot()
             )
             startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
                 type = "application/json"
@@ -290,7 +298,9 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         }
         observing = false
         authenticating = true
+        val correlationId = sdkEvidence.begin()
         startedAtUtc = Instant.now().toString()
+        status("Evidenzkennung: $correlationId")
         certificateShown = false
         rightsShown = false
         nfcForwarded = false
@@ -304,6 +314,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     }
 
     private fun handleSdkMessage(data: JSONObject) {
+        sdkEvidence.receivedSdkMessage(SelfAuthProtocol.sdkMessageType(data))
         when (SelfAuthProtocol.sdkMessageType(data)) {
             "API_LEVEL" -> {
                 if (apiLevelRequested == null) {
@@ -410,6 +421,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         }
         certificateShown = true
         rightsShown = true
+        sdkEvidence.mark(SdkEvidenceEvent.CERTIFICATE_AND_RIGHTS_DISPLAYED, SdkEvidenceSource.UI_ACTION)
         activeDialog = AlertDialog.Builder(this)
             .setTitle("Berechtigungszertifikat und Freigabe")
             .setView(view)
@@ -417,12 +429,14 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
             .setPositiveButton("Daten freigeben") { _, _ ->
                 activeDialog = null
                 rights = null
+                sdkEvidence.mark(SdkEvidenceEvent.USER_CONSENT_ACCEPTED, SdkEvidenceSource.UI_ACTION)
                 sdkBridge.send(SelfAuthProtocol.command("ACCEPT"))
                 status("Zugriffsrechte ausdrücklich bestätigt.")
             }
             .setNegativeButton("Abbrechen") { _, _ ->
                 activeDialog = null
                 rights = null
+                sdkEvidence.mark(SdkEvidenceEvent.USER_CONSENT_REJECTED, SdkEvidenceSource.UI_ACTION)
                 sdkBridge.send(SelfAuthProtocol.command("CANCEL"))
                 status("Zugriffsrechte abgelehnt.")
             }
@@ -476,6 +490,12 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
                 } else {
                     val sent = sdkBridge.sendSecret(command, chars)
                     if (sent) {
+                        val marker = when (command) {
+                            "SET_PIN" -> SdkEvidenceEvent.PIN_SUBMITTED
+                            "SET_CAN" -> SdkEvidenceEvent.CAN_SUBMITTED
+                            else -> SdkEvidenceEvent.PUK_SUBMITTED
+                        }
+                        sdkEvidence.mark(marker, SdkEvidenceSource.UI_ACTION)
                         status("$title an AusweisApp-SDK übergeben (Wert nicht gespeichert).")
                         activeDialog = null
                         dialog.dismiss()
@@ -490,6 +510,12 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     }
 
     private fun finishAuthentication(message: JSONObject) {
+        sdkEvidence.mark(
+            if (SelfAuthProtocol.safeOutcome(message) == "ok") SdkEvidenceEvent.AUTH_FINAL_OK
+            else SdkEvidenceEvent.AUTH_FINAL_ERROR,
+            SdkEvidenceSource.SDK_CALLBACK
+        )
+        sdkEvidence.end()
         closeDialog()
         authHistory += SelfAuthProtocol.summarize(
             message, startedAtUtc, certificateShown, rightsShown, nfcForwarded
@@ -507,6 +533,8 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
     }
 
     private fun finishLocally(reason: String) {
+        sdkEvidence.mark(SdkEvidenceEvent.LOCAL_ABORT, SdkEvidenceSource.APP_DISPATCH)
+        sdkEvidence.end()
         closeDialog()
         authHistory += AuthRunSummary(
             startedAtUtc, Instant.now().toString(),
@@ -573,6 +601,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
                 if (!compatible) {
                     status("Karte/Gerät bietet keine erforderliche ISO-DEP-Extended-Length-Unterstützung.")
                 } else if (sdkBridge.forwardTag(tag)) {
+                    sdkEvidence.mark(SdkEvidenceEvent.NFC_TAG_DISPATCHED, SdkEvidenceSource.APP_DISPATCH)
                     nfcForwarded = true
                     status("ISO-DEP-Tag an unveränderte AusweisApp-SDK-Engine übergeben.")
                 } else {

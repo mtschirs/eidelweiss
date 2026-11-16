@@ -13,7 +13,8 @@ object DiagnosticReport {
         scenarios: List<ScenarioReport>,
         nfcObservations: List<String>,
         authRuns: List<AuthRunSummary> = emptyList(),
-        labRuns: List<LabTrial> = emptyList()
+        labRuns: List<LabTrial> = emptyList(),
+        sdkRuns: List<SdkEvidenceRun> = emptyList()
     ): String {
         val cases = JSONArray()
         scenarios.forEach { scenario ->
@@ -73,8 +74,27 @@ object DiagnosticReport {
                 .put("real_server_evidence", false)
                 .put("steps", timeline))
         }
+        val sdkEvidence = JSONArray()
+        sdkRuns.forEach { run ->
+            val marks = JSONArray()
+            run.marks.forEach { entry ->
+                marks.put(JSONObject()
+                    .put("elapsed_ms", entry.elapsedMs)
+                    .put("event", entry.event.name)
+                    .put("source", entry.source.name))
+            }
+            sdkEvidence.put(JSONObject()
+                .put("correlation_id", run.correlationId)
+                .put("started_at_utc", run.startedUtc)
+                .put("ended_at_utc", run.endedUtc ?: JSONObject.NULL)
+                .put("source", "APP_LEVEL_SDK_CALLBACKS_AND_USER_ACTIONS_ONLY")
+                .put("contains_apdu_trace", false)
+                .put("proves_chip_session_continuity", false)
+                .put("proves_terminal_authentication", false)
+                .put("marks", marks))
+        }
         return JSONObject()
-            .put("schema_version", 3)
+            .put("schema_version", 4)
             .put("generated_at_utc", Instant.now().toString())
             .put("scope", "OFFLINE_SYNTHETIC_FAULT_LAB_PASSIVE_NFC_AND_STANDARD_AUSWEISAPP_SDK_SELF_AUTH")
             .put("real_npa_security_conclusion", "NOT_ESTABLISHED")
@@ -82,6 +102,7 @@ object DiagnosticReport {
             .put("authentication_runs", auth)
             .put("cases", cases)
             .put("eac2_fault_lab_trials", lab)
+            .put("sdk_observation_runs", sdkEvidence)
             .toString(2)
     }
 }
