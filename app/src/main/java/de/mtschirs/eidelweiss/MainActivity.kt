@@ -216,7 +216,7 @@ class MainActivity : Activity(), NfcAdapter.ReaderCallback {
         }.also(stack::addView)
 
         stack.addView(TextView(this).apply {
-            text = "Diagnose ohne Kartenzugriff"
+            text = "NFC-Diagnose (passiv oder öffentliches EF.CardAccess)"
             textSize = 17f
             setPadding(0, 24, 0, 10)
         })

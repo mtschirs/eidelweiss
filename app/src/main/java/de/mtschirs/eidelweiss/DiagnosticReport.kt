@@ -112,8 +112,8 @@ object DiagnosticReport {
             .put("schema_version", 5)
             .put("generated_at_utc", Instant.now().toString())
             .put("scope", if (BuildConfig.EIDELWEISS_LAB_AAR)
-                "OFFLINE_SYNTHETIC_FAULT_LAB_PASSIVE_NFC_AND_INSTRUMENTED_AUSWEISAPP_SDK_SELF_AUTH"
-                else "OFFLINE_SYNTHETIC_FAULT_LAB_PASSIVE_NFC_AND_STANDARD_AUSWEISAPP_SDK_SELF_AUTH")
+                "OFFLINE_SYNTHETIC_FAULT_LAB_PASSIVE_NFC_PUBLIC_CARDACCESS_PREFLIGHT_AND_INSTRUMENTED_AUSWEISAPP_SDK_SELF_AUTH"
+                else "OFFLINE_SYNTHETIC_FAULT_LAB_PASSIVE_NFC_PUBLIC_CARDACCESS_PREFLIGHT_AND_STANDARD_AUSWEISAPP_SDK_SELF_AUTH")
             .put("sdk_engine", if (BuildConfig.EIDELWEISS_LAB_AAR)
                 "LOCAL_INSTRUMENTED_CXX_AAR" else "OFFICIAL_UNMODIFIED_SDK_AAR")
             .put("real_npa_security_conclusion", "NOT_ESTABLISHED")

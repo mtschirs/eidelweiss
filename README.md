@@ -48,6 +48,24 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 The GitHub Actions workflow builds and tests the app and uploads a debug APK artifact. An APK build validates compilation only; the real eID flow additionally requires an NFC device, enabled online-ID function, and a current Governikus service.
 
+## Eigenständiger NFC-Lesetest vor PIN/PACE
+
+Der Test `NFC-Lesetest: öffentliches EF.CardAccess` greift **außerhalb**
+einer SDK-Authentisierung direkt per Android `IsoDep` auf den öffentlichen
+Chipdateikopf zu. Er sendet genau zwei ungeschützte ISO-7816-Kommandos:
+SELECT EF.CardAccess (`011C`) und READ BINARY eines einzigen Bytes.
+Es werden **keine** personenbezogenen Daten oder PINs gelesen.
+
+Damit lässt sich unterscheiden, ob bereits der grundlegende NFC-/ISO-DEP-
+Kartenzugriff instabil ist (`CONNECTION_LOST`, `IO_ERROR`) oder ob
+zwei Standard-APDUs erfolgreich funktionieren (`CARD_ACCESS_OK`), obwohl
+die native AusweisApp-Engine nur `UNKNOWN_CARD` oder `NO_CARD` meldet.
+
+Die App schließt die NFC-Verbindung nach der Probe sofort. Den Ausweis
+vor einer regulären Selbstauskunft kurz entfernen und erneut auflegen.
+Ergebnisse werden unter `nfc_observations` ohne APDU-Antwortbytes im
+JSON-Bericht gespeichert. [Anleitung und Ergebnisinterpretation](docs/NFC_CARD_ACCESS_PREFLIGHT.md).
+
 ## NFC/PIN handoff: diagnosed and corrected
 
 The app forwards the NFC `Tag` to `IAusweisApp2Sdk.updateNfcTag()` directly
