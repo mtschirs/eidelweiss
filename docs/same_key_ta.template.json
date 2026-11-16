@@ -1,0 +1,19 @@
+{
+  "schema": "eidelweiss.same_key_ta.v1",
+  "run_id": "template_2026_0001",
+  "environment": "TEST_PKI",
+  "source": "UNVERIFIED_TEMPLATE",
+  "fault_point": "EAC2_RESULT_ERROR_AFTER_ACCEPTED_FIRST_TA",
+  "first_ta_chip_result": "UNKNOWN",
+  "eac2_error_reported": false,
+  "first_terminal_public_key_sha256": null,
+  "second_terminal_public_key_sha256": null,
+  "card_sm_session_continuous": false,
+  "no_card_reset": false,
+  "no_second_pace": false,
+  "second_ta_fresh_signature_verified_by_lab": false,
+  "second_ta_reached_chip": false,
+  "second_ta_inner_status_verified": false,
+  "second_ta_chip_result": "UNKNOWN",
+  "redacted_evidence_sha256": null
+}
