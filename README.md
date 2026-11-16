@@ -36,7 +36,7 @@ Source references:
 
 ## Build
 
-Requires Java 17, Gradle 8.13, Android SDK 36; an NFC-capable Android device supporting extended-length ISO-DEP communication (API 26+). Android Studio can import the project. The Gradle dependency downloads the official 2.6.2 AAR from Maven Central; **no local AusweisApp recompilation is required**.
+Requires Java 17, Gradle 8.13, Android SDK 36; an NFC-capable Android device supporting extended-length ISO-DEP communication (API 28+). Android Studio can import the project. The Gradle dependency downloads the official 2.6.2 AAR from Maven Central; **no local AusweisApp recompilation is required**.
 
 ```sh
 gradle testDebugUnitTest
